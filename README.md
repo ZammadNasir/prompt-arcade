@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Prompt Arcade
 
-## Getting Started
+Prompt Arcade is a static-first open-source arcade for AI-generated browser games. The site is intentionally lightweight: games live in the filesystem, routes are generated automatically, and contributors do not need to touch application logic.
 
-First, run the development server:
+## Run Locally
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The `predev` and `prebuild` scripts scan `/games` and regenerate the static game registry.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Add a Game
 
-## Learn More
+Create a new folder:
 
-To learn more about Next.js, take a look at the following resources:
+```text
+games/my-game/
+  game.tsx
+  meta.ts
+  thumbnail.png
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`meta.ts` should export a typed `meta` object:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```ts
+import thumbnail from "./thumbnail.png";
+import type { GameMeta } from "@/lib/game-types";
 
-## Deploy on Vercel
+export const meta = {
+  slug: "my-game",
+  name: "My Game",
+  description: "A browser game generated from prompts.",
+  genre: "Action",
+  generatedWith: "Codex",
+  status: "Playable",
+  thumbnail,
+  prompts: ["Create a browser game"],
+  knownIssues: ["Still rough around the edges."],
+} satisfies GameMeta;
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+`game.tsx` should default-export the React component that renders the game. Use `"use client"` when the game needs browser state, timers, events, or canvas APIs.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Architecture
+
+- `app/page.tsx` renders the arcade homepage.
+- `app/game/[slug]/page.tsx` renders static detail pages for each game.
+- `games/*` contains contributor-owned game folders.
+- `lib/games.ts` exposes typed helpers for listing and resolving games.
+- `scripts/generate-game-registry.mjs` generates static imports for Next.js builds.
+
+## Build
+
+```bash
+npm run build
+```
+
+The project uses `output: "export"` in `next.config.ts`, so production builds generate static files in `out/`.
