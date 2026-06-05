@@ -2,8 +2,8 @@ import { GameFilters } from "@/components/game-filters";
 import { SiteNav } from "@/components/site-nav";
 import { listGameCards } from "@/lib/games";
 
-export default function Home() {
-  const games = listGameCards();
+export default async function Home() {
+  const games = await listGameCards();
 
   return (
     <>

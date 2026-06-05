@@ -12,15 +12,16 @@ type GamePageProps = {
 
 export const dynamicParams = false;
 
-export function generateStaticParams() {
-  return listGameSlugs().map((slug) => ({ slug }));
+export async function generateStaticParams() {
+  const slugs = await listGameSlugs();
+  return slugs.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({
   params,
 }: GamePageProps): Promise<Metadata> {
   const { slug } = await params;
-  const game = getGameBySlug(slug);
+  const game = await getGameBySlug(slug);
 
   if (!game) {
     return {
@@ -36,7 +37,7 @@ export async function generateMetadata({
 
 export default async function GamePage({ params }: GamePageProps) {
   const { slug } = await params;
-  const game = getGameBySlug(slug);
+  const game = await getGameBySlug(slug);
 
   if (!game) {
     notFound();
