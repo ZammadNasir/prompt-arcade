@@ -80,6 +80,7 @@ export default function FrontlineSurge() {
   const lastShotTime = useRef(0);
   const isShootingRef = useRef(false);
   const muzzleFlashRef = useRef(0);
+  const lastPointerUnlockTime = useRef<number>(0);
 
   // Monitor canvas pointer lock state alterations
   useEffect(() => {
@@ -87,17 +88,39 @@ export default function FrontlineSurge() {
       if (document.pointerLockElement === canvasRef.current) {
         setPointerLocked(true);
       } else {
+        lastPointerUnlockTime.current = performance.now();
         setPointerLocked(false);
       }
     };
+
+    const handleLockError = () => {
+      lastPointerUnlockTime.current = performance.now();
+      setPointerLocked(false);
+      console.warn("Pointer lock request failed or was blocked.");
+    };
+
     document.addEventListener("pointerlockchange", handleLockChange);
-    return () =>
+    document.addEventListener("pointerlockerror", handleLockError);
+    return () => {
       document.removeEventListener("pointerlockchange", handleLockChange);
+      document.removeEventListener("pointerlockerror", handleLockError);
+    };
   }, []);
 
   const lockPointer = () => {
-    if (canvasRef.current) {
-      canvasRef.current.requestPointerLock();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const now = performance.now();
+    if (now - lastPointerUnlockTime.current < 250) {
+      window.setTimeout(() => lockPointer(), 260);
+      return;
+    }
+
+    try {
+      canvas.requestPointerLock();
+    } catch (error) {
+      console.warn("Failed to request pointer lock:", error);
     }
   };
 
@@ -121,11 +144,7 @@ export default function FrontlineSurge() {
 
     generateWave(1);
     setGameState("PLAYING");
-
-    // Request pointer lock inside the synchronous call stack layer of user interaction
-    setTimeout(() => {
-      lockPointer();
-    }, 50);
+    lockPointer();
   };
 
   const generateWave = (waveNum: number) => {

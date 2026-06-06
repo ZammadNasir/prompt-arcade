@@ -111,7 +111,27 @@ Driving sims
 Flight sims
 Minecraft-like games
 
-Prefer Phaser whenever possible.
+Installer libraries
+
+"dependencies": {
+"matter-js": "^0.20.0",
+"next": "16.2.7",
+"phaser": "^4.1.0",
+"react": "19.2.4",
+"react-dom": "19.2.4",
+"three": "^0.184.0"
+},
+"devDependencies": {
+"@tailwindcss/postcss": "^4",
+"@types/matter-js": "^0.20.2",
+"@types/node": "^20",
+"@types/react": "^19",
+"@types/react-dom": "^19",
+"eslint": "^9",
+"eslint-config-next": "16.2.7",
+"tailwindcss": "^4",
+"typescript": "^5"
+}
 
 File Structure
 
