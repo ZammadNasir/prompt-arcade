@@ -18,7 +18,9 @@ export default function ZombieEscapeGame() {
   const [player, setPlayer] = useState<Point>(startPlayer);
   const [zombies, setZombies] = useState<Point[]>(startZombies);
   const escaped = player.x === 7;
-  const caught = zombies.some((zombie) => zombie.x === player.x && zombie.y === player.y);
+  const caught = zombies.some(
+    (zombie) => zombie.x === player.x && zombie.y === player.y,
+  );
 
   function move(dx: number, dy: number) {
     if (caught || escaped) {
@@ -44,9 +46,11 @@ export default function ZombieEscapeGame() {
   }
 
   return (
-    <div className="mx-auto max-w-xl rounded-lg border border-slate-700 bg-slate-900 p-4 text-slate-50">
+    <div className="mx-auto max-w-4xl  rounded-lg border border-slate-700 bg-slate-900 p-4 text-slate-50">
       <div className="mb-3 flex items-center justify-between text-sm font-bold">
-        <span>{caught ? "Caught" : escaped ? "Escaped" : "Reach the right edge"}</span>
+        <span>
+          {caught ? "Caught" : escaped ? "Escaped" : "Reach the right edge"}
+        </span>
         <button type="button" onClick={reset} className="text-amber-300">
           Reset
         </button>
@@ -56,7 +60,9 @@ export default function ZombieEscapeGame() {
           const x = index % 8;
           const y = Math.floor(index / 8);
           const isPlayer = player.x === x && player.y === y;
-          const isZombie = zombies.some((zombie) => zombie.x === x && zombie.y === y);
+          const isZombie = zombies.some(
+            (zombie) => zombie.x === x && zombie.y === y,
+          );
           const isExit = x === 7;
 
           return (
@@ -73,17 +79,33 @@ export default function ZombieEscapeGame() {
       </div>
       <div className="mt-4 grid grid-cols-3 gap-2">
         <span />
-        <button type="button" onClick={() => move(0, -1)} className="rounded-md bg-slate-800 py-2 font-bold">
+        <button
+          type="button"
+          onClick={() => move(0, -1)}
+          className="rounded-md bg-slate-800 py-2 font-bold"
+        >
           Up
         </button>
         <span />
-        <button type="button" onClick={() => move(-1, 0)} className="rounded-md bg-slate-800 py-2 font-bold">
+        <button
+          type="button"
+          onClick={() => move(-1, 0)}
+          className="rounded-md bg-slate-800 py-2 font-bold"
+        >
           Left
         </button>
-        <button type="button" onClick={() => move(0, 1)} className="rounded-md bg-slate-800 py-2 font-bold">
+        <button
+          type="button"
+          onClick={() => move(0, 1)}
+          className="rounded-md bg-slate-800 py-2 font-bold"
+        >
           Down
         </button>
-        <button type="button" onClick={() => move(1, 0)} className="rounded-md bg-slate-800 py-2 font-bold">
+        <button
+          type="button"
+          onClick={() => move(1, 0)}
+          className="rounded-md bg-slate-800 py-2 font-bold"
+        >
           Right
         </button>
       </div>

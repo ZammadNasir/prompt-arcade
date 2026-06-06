@@ -9,10 +9,12 @@ export const meta = {
   generatedWith: "Codex",
   status: "Experimental",
   thumbnail,
+  layout: "immersive",
   controls: [
-    "Use Left and Right to switch lanes.",
+    "Use Left and Right arrow keys to switch lanes.",
     "Avoid red comets.",
-    "Press F to toggle fullscreen immersion mode.",
+    "Press F to toggle fullscreen.",
+    "Press Escape to exit native fullscreen.",
   ],
   prompts: [
     "Create a space racing game",

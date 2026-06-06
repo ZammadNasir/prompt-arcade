@@ -4,16 +4,14 @@ import type { GameMeta } from "@/lib/game-types";
 export const meta = {
   slug: "bird-launcher",
   name: "Bird Launcher",
-  description: "Launch a chunky bird toward a stack of targets with one button.",
+  description:
+    "Launch a chunky bird toward a stack of targets with one button.",
   genre: "Shooter",
   generatedWith: "Codex",
   status: "Broken",
   thumbnail,
-  controls: [
-    "Adjust the power slider.",
-    "Press Launch to fire the bird.",
-    "Press F to toggle fullscreen immersion mode.",
-  ],
+  layout: "card",
+  controls: ["Adjust the power slider.", "Press Launch to fire the bird."],
   prompts: [
     "Create a bird launching game",
     "Add a power meter",

@@ -9,6 +9,7 @@ export const meta = {
   generatedWith: "Codex",
   status: "Chaos Mode",
   thumbnail,
+  layout: "card",
   controls: [
     "Use the direction buttons to move.",
     "Reach the green exit on the right.",

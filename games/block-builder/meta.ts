@@ -9,6 +9,7 @@ export const meta = {
   generatedWith: "Codex",
   status: "Actually Good",
   thumbnail,
+  layout: "card",
   controls: [
     "Pick a color swatch.",
     "Click cells to place blocks.",

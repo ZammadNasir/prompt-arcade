@@ -48,6 +48,7 @@ export default async function GamePage({ params }: GamePageProps) {
     genre: game.meta.genre,
     generatedWith: game.meta.generatedWith,
     status: game.meta.status,
+    layout: game.meta.layout,
     controls: game.meta.controls,
     prompts: game.meta.prompts,
     knownIssues: game.meta.knownIssues,

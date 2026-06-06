@@ -29,7 +29,7 @@ export default function BirdLauncherGame() {
   }, [flying, power]);
 
   return (
-    <div className="mx-auto max-w-2xl rounded-lg border border-slate-700 bg-slate-900 p-4 text-slate-50">
+    <div className="mx-auto max-w-6xl rounded-lg border border-slate-700 bg-slate-900 p-4 text-slate-50">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm font-bold">
         <span>Targets toppled {score}</span>
         <label className="flex items-center gap-3">

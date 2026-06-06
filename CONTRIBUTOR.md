@@ -140,9 +140,10 @@ export const meta = {
   generatedWith: "Codex",
   status: "Playable",
   thumbnail,
+  layout: "card",       // or "immersive" — see Section 6
   prompts: [],
   knownIssues: [],
-};
+} satisfies GameMeta;
 ```
 
 ---
@@ -159,9 +160,175 @@ export const meta = {
 - prompts
 - knownIssues
 
+## Optional Fields
+
+- layout *(defaults to `"card"` if omitted)*
+- controls
+
 ---
 
-# 6. Thumbnail Rules
+# 6. Layout System
+
+Every game must fit one of two layouts. Choose the one that matches your game's nature.
+
+---
+
+## 6.1 Layout Types
+
+```ts
+type GameLayout = "card" | "immersive";
+```
+
+---
+
+## 6.2 `card` — Puzzle, Board, Grid, Text Games
+
+Use `card` when your game:
+
+- Is a puzzle, board game, card game, word game, or grid game
+- Has a fixed or small play area
+- Relies on buttons, clicks, or keyboard input on a bounded UI
+- Would look absurd stretched across a 1920px display
+
+Behavior:
+
+- Game content is centered horizontally
+- Max width: `42rem` (672px)
+- Vertical scrolling is allowed if content overflows
+- Controls panel is always visible
+- No fullscreen mode
+
+Example meta:
+
+```ts
+export const meta = {
+  slug: "my-puzzle",
+  layout: "card",
+  ...
+} satisfies GameMeta;
+```
+
+Example game structure:
+
+```tsx
+export default function MyPuzzleGame() {
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      <div className="grid grid-cols-9 gap-1">
+        {/* board cells */}
+      </div>
+      <div className="flex gap-2">
+        {/* action buttons */}
+      </div>
+    </div>
+  );
+}
+```
+
+The shell centers your component inside a `max-w-2xl` container. You do not need to add centering yourself.
+
+---
+
+## 6.3 `immersive` — Platformers, Shooters, Racing, Canvas Games
+
+Use `immersive` when your game:
+
+- Is a platformer, shooter, racing game, physics simulation, or canvas-rendered game
+- Benefits from using the full viewport
+- Uses a canvas element or a viewport-filling render loop
+- Feels cramped or wrong in a constrained box
+
+Behavior:
+
+- Game stage fills the full browser viewport when playing
+- A "Play Now" overlay is shown before the game starts
+- Fullscreen is available via the `F` key or the Play button
+- Scrolling is disabled during play
+- Controls auto-hide after 3 seconds of inactivity
+- Metadata is shown below the stage when not playing
+
+Example meta:
+
+```ts
+export const meta = {
+  slug: "my-racer",
+  layout: "immersive",
+  ...
+} satisfies GameMeta;
+```
+
+Example game structure — canvas game:
+
+```tsx
+export default function MyRacerGame() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    // size the canvas to its container
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    // start render loop...
+  }, []);
+
+  return <canvas ref={canvasRef} className="w-full h-full" />;
+}
+```
+
+Your component receives a container that fills the remaining viewport. Use `w-full h-full` on your root element to occupy it fully.
+
+---
+
+## 6.4 Responsive Sizing
+
+### Card games
+
+Do not set fixed pixel widths. Use relative or fluid sizing:
+
+```tsx
+// Good
+<div className="grid grid-cols-9 gap-1 w-full">
+
+// Bad
+<div style={{ width: "540px" }}>
+```
+
+### Immersive games — canvas sizing
+
+Avoid hardcoded canvas dimensions. Size the canvas to its container at runtime:
+
+```tsx
+useEffect(() => {
+  const canvas = canvasRef.current!;
+  const resize = () => {
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+  };
+  resize();
+  window.addEventListener("resize", resize);
+  return () => window.removeEventListener("resize", resize);
+}, []);
+```
+
+---
+
+## 6.5 Fullscreen Expectations
+
+Only `immersive` games support fullscreen. The shell handles everything — you do not need to call `requestFullscreen` yourself.
+
+When your game enters fullscreen:
+
+- The stage is `100vw × 100vh`
+- The top bar overlays the game (semi-transparent, auto-hides)
+- Scrolling is locked on `document.body`
+- Pressing `F` or `Escape` exits fullscreen
+
+Your game component does not need to know it is in fullscreen. Size to your container and the shell handles the rest.
+
+---
+
+# 7. Thumbnail Rules
 
 Your thumbnail must: (Thumbnail prompt provided in **GAME_THUMBNAIL_PROMPT_TEMPLATE.md**)
 
@@ -176,21 +343,6 @@ Do NOT include:
 - Logos
 - Watermarks
 - Real game branding
-
----
-
-# 7. Game Page Behavior (Important)
-
-Your game will be displayed in:
-
-> Fullscreen-first arcade mode
-
-So ensure:
-
-- Game works in a large container
-- Responsive resizing works
-- No fixed canvas sizes
-- No layout assumptions
 
 ---
 

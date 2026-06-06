@@ -2,14 +2,15 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
   gameGenres,
+  gameLayouts,
   gameStatuses,
   type GameCardData,
   type GameMeta,
   type GameRegistryEntry,
 } from "./game-types";
 
-export { gameGenres, gameStatuses };
-export type { GameCardData, GameGenre, GameMeta, GameStatus } from "./game-types";
+export { gameGenres, gameLayouts, gameStatuses };
+export type { GameCardData, GameGenre, GameLayout, GameMeta, GameStatus } from "./game-types";
 
 const gamesDirectory = join(process.cwd(), "games");
 

@@ -117,3 +117,5 @@ You generate:
 Always optimize for:
 
 **Clarity > Beauty > Complexity**
+
+Note the image should be .PNG
