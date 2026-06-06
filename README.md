@@ -33,10 +33,8 @@ The goal is to explore what happens when developers and AI collaborate to create
 
 - Phaser
 - Matter.js
-
-#### Allowed
-
 - Three.js
+- Canvas API
 
 ### Recommended Usage
 
@@ -55,7 +53,7 @@ Use **Matter.js** when physics gameplay is important:
 - Projectile mechanics
 - Destruction systems
 
-Use **Three.js** when true 3D gameplay is required:
+Use **Three.js** when 3D gameplay is required:
 
 - FPS games
 - Sandbox games

@@ -9,6 +9,11 @@ export const meta = {
   generatedWith: "Codex",
   status: "Broken",
   thumbnail,
+  controls: [
+    "Adjust the power slider.",
+    "Press Launch to fire the bird.",
+    "Press F to toggle fullscreen immersion mode.",
+  ],
   prompts: [
     "Create a bird launching game",
     "Add a power meter",

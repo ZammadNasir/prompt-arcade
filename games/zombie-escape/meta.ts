@@ -9,6 +9,11 @@ export const meta = {
   generatedWith: "Codex",
   status: "Chaos Mode",
   thumbnail,
+  controls: [
+    "Use the direction buttons to move.",
+    "Reach the green exit on the right.",
+    "Avoid sharing a tile with zombies.",
+  ],
   prompts: [
     "Create a zombie escape game",
     "Add a grid arena",

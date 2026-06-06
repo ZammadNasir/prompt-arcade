@@ -54,10 +54,8 @@ Approved game libraries:
 
 - Phaser
 - Matter.js
-
-## Allowed
-
 - Three.js
+- Canvas API
 
 ### Library Selection Rules
 
@@ -82,7 +80,7 @@ Examples:
 - Destruction mechanics
 - Projectile simulations
 
-Use Three.js only when true 3D gameplay is required.
+Use Three.js only when 3D gameplay is required.
 
 Examples:
 

@@ -29,6 +29,7 @@ export type GameMeta = {
   generatedWith: string;
   status: GameStatus;
   thumbnail: GameThumbnail;
+  controls?: string[];
   prompts: string[];
   knownIssues: string[];
 };

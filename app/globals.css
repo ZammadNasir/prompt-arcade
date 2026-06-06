@@ -32,3 +32,17 @@ html {
   background: var(--accent);
   color: #0f172a;
 }
+
+.game-stage-content > * {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  border-radius: 0 !important;
+}
+
+.game-stage-content canvas,
+.game-stage-content iframe {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}

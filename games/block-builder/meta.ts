@@ -9,6 +9,11 @@ export const meta = {
   generatedWith: "Codex",
   status: "Actually Good",
   thumbnail,
+  controls: [
+    "Pick a color swatch.",
+    "Click cells to place blocks.",
+    "Right-click cells to remove blocks.",
+  ],
   prompts: [
     "Create a block building game",
     "Add multiple block colors",

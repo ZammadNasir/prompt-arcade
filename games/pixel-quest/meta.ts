@@ -9,6 +9,11 @@ export const meta = {
   generatedWith: "Codex",
   status: "Playable",
   thumbnail,
+  controls: [
+    "Use the direction buttons to move the hero.",
+    "Collect every gem before moves run out.",
+    "Press F to toggle fullscreen immersion mode.",
+  ],
   prompts: [
     "Create a pixel quest game",
     "Add collectible gems",

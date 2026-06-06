@@ -100,9 +100,6 @@ Tier 1 (Recommended)
 - Canvas API
 - Phaser
 - Matter.js
-
-Tier 2 (Allowed)
-
 - Three.js
 
 Avoid
@@ -128,11 +125,16 @@ Physics
 
 - Three.js
 
+For Anything
+
+- Canvas API
+
 Preferred Order
 
 1. Phaser
 2. Phaser + Matter.js
-3. Three.js (only when 3D is actually needed)
+3. Three.js
+4. Canvas API
 
 Avoid adding additional game engines unless there is a strong reason.
 

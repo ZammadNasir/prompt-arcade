@@ -9,6 +9,11 @@ export const meta = {
   generatedWith: "Codex",
   status: "Experimental",
   thumbnail,
+  controls: [
+    "Use Left and Right to switch lanes.",
+    "Avoid red comets.",
+    "Press F to toggle fullscreen immersion mode.",
+  ],
   prompts: [
     "Create a space racing game",
     "Add lane switching",

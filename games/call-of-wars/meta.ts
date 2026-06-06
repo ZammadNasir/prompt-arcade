@@ -9,6 +9,11 @@ export const meta = {
   generatedWith: "Codex",
   status: "Playable",
   thumbnail,
+  controls: [
+    "Click red targets to shoot.",
+    "Use Reload when ammo reaches zero.",
+    "Press F to toggle fullscreen immersion mode.",
+  ],
   prompts: ["Create FPS game", "Add enemies", "Add shooting mechanics"],
   knownIssues: ["Enemies occasionally freeze.", "Reload animation is missing."],
 } satisfies GameMeta;
