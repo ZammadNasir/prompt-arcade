@@ -9,6 +9,19 @@ interface GameState {
   blocksPlaced: number;
   towerHeight: number;
   gameActive: boolean;
+  gameStarted: boolean;
+  lastCombo: number;
+  comboMultiplier: number;
+}
+
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  text?: string;
+  size?: number;
 }
 
 export default function TowerOfAlmostStability() {
@@ -17,99 +30,152 @@ export default function TowerOfAlmostStability() {
   const worldRef = useRef<Matter.World | null>(null);
   const bodiesRef = useRef<Matter.Body[]>([]);
   const wallsRef = useRef<Matter.Body[]>([]);
+  const particlesRef = useRef<Particle[]>([]);
+  const mouseRef = useRef({ x: 0, y: 0 });
   const [gameState, setGameState] = useState<GameState>({
     score: 0,
     timeElapsed: 0,
     blocksPlaced: 0,
     towerHeight: 0,
-    gameActive: true,
+    gameActive: false,
+    gameStarted: false,
+    lastCombo: 0,
+    comboMultiplier: 1,
   });
 
-  const [gravityDirection, setGravityDirection] = useState(0); // 0=down, 1=left, 2=right, 3=up
+  const gravityDirectionRef = useRef(0);
   const gravityTimerRef = useRef(0);
   const windForceRef = useRef({ x: 0, y: 0 });
   const windTimerRef = useRef(0);
-  const gameStartTimeRef = useRef(Date.now());
+  const gameStartTimeRef = useRef(0);
   const lastBlockTimeRef = useRef(0);
+  const gravityShakeRef = useRef(0);
+  const blockColorRef = useRef(0);
+  const lastScoreTimeRef = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Initialize Matter.js
     const Engine = Matter.Engine;
     const World = Matter.World;
     const Body = Matter.Body;
     const Bodies = Matter.Bodies;
-    const Events = Matter.Events;
 
     const engine = Engine.create();
     const world = engine.world;
     world.gravity.y = 1;
+    world.gravity.scale = 0.001;
 
     engineRef.current = engine;
     worldRef.current = world;
 
-    // Set canvas size
     const width = window.innerWidth;
     const height = window.innerHeight;
     canvas.width = width;
     canvas.height = height;
 
-    // Create renderer
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Create walls (boundaries)
-    const wallThickness = 40;
+    // Create walls
+    const wallThickness = 50;
     const walls = [
-      Bodies.rectangle(width / 2, -wallThickness / 2, width, wallThickness, {
-        isStatic: true,
-        label: "wall",
-      }),
+      Bodies.rectangle(
+        width / 2,
+        -wallThickness / 2,
+        width + 100,
+        wallThickness,
+        {
+          isStatic: true,
+          label: "wall",
+        },
+      ),
       Bodies.rectangle(
         width / 2,
         height + wallThickness / 2,
-        width,
+        width + 100,
         wallThickness,
-        { isStatic: true, label: "wall" },
+        {
+          isStatic: true,
+          label: "wall",
+        },
       ),
-      Bodies.rectangle(-wallThickness / 2, height / 2, wallThickness, height, {
-        isStatic: true,
-        label: "wall",
-      }),
+      Bodies.rectangle(
+        -wallThickness / 2,
+        height / 2,
+        wallThickness,
+        height + 100,
+        {
+          isStatic: true,
+          label: "wall",
+        },
+      ),
       Bodies.rectangle(
         width + wallThickness / 2,
         height / 2,
         wallThickness,
-        height,
-        { isStatic: true, label: "wall" },
+        height + 100,
+        {
+          isStatic: true,
+          label: "wall",
+        },
       ),
     ];
 
     walls.forEach((wall) => World.add(world, wall));
     wallsRef.current = walls;
 
+    // Mouse move handler for preview
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
+    };
+
     // Block placement handler
     const handleCanvasClick = (e: MouseEvent) => {
+      if (!gameState.gameStarted) {
+        // Start game
+        setGameState((prev) => ({
+          ...prev,
+          gameStarted: true,
+          gameActive: true,
+        }));
+        gameStartTimeRef.current = Date.now();
+        return;
+      }
+
       if (!gameState.gameActive) return;
 
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
-      // Create block
-      const blockSize = 30;
+      const blockSize = 35;
       const block = Bodies.rectangle(x, y, blockSize, blockSize, {
-        friction: 0.5,
-        restitution: 0.3,
+        friction: 0.6,
+        restitution: 0.4,
         label: "block",
+        density: 0.04,
       });
 
       World.add(world, block);
       bodiesRef.current.push(block);
 
-      // Update game state
+      // Add particle effect
+      for (let i = 0; i < 5; i++) {
+        particlesRef.current.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 8,
+          vy: (Math.random() - 0.5) * 8,
+          life: 1,
+        });
+      }
+
       setGameState((prev) => ({
         ...prev,
         blocksPlaced: prev.blocksPlaced + 1,
@@ -119,65 +185,86 @@ export default function TowerOfAlmostStability() {
     };
 
     canvas.addEventListener("click", handleCanvasClick);
+    canvas.addEventListener("mousemove", handleMouseMove);
 
-    // Game loop
+    // Main game loop
     const gameLoop = setInterval(() => {
+      if (!gameState.gameStarted) return;
+
       Engine.update(engine);
 
-      // Update gravity direction every 10 seconds
-      gravityTimerRef.current += 1000 / 60; // ~60 FPS
+      // Update gravity every 10 seconds
+      gravityTimerRef.current += 1000 / 60;
       if (gravityTimerRef.current > 10000) {
         gravityTimerRef.current = 0;
         const newDirection = Math.floor(Math.random() * 4);
-        setGravityDirection(newDirection);
+        gravityDirectionRef.current = newDirection;
+        gravityShakeRef.current = 15;
 
         // Apply gravity rotation
+        const gravityStrength = 1 + gameState.timeElapsed / 120;
         switch (newDirection) {
-          case 0: // Down
+          case 0:
             world.gravity.x = 0;
-            world.gravity.y = 1;
+            world.gravity.y = gravityStrength;
             break;
-          case 1: // Left
-            world.gravity.x = -1;
+          case 1:
+            world.gravity.x = -gravityStrength;
             world.gravity.y = 0;
             break;
-          case 2: // Right
-            world.gravity.x = 1;
+          case 2:
+            world.gravity.x = gravityStrength;
             world.gravity.y = 0;
             break;
-          case 3: // Up
+          case 3:
             world.gravity.x = 0;
-            world.gravity.y = -1;
+            world.gravity.y = -gravityStrength;
             break;
+        }
+
+        // Add gravity change particles
+        for (let i = 0; i < 20; i++) {
+          particlesRef.current.push({
+            x: width / 2 + (Math.random() - 0.5) * 200,
+            y: height / 2 + (Math.random() - 0.5) * 200,
+            vx: (Math.random() - 0.5) * 15,
+            vy: (Math.random() - 0.5) * 15,
+            life: 1,
+            text: "GRAVITY!",
+            size: 24,
+          });
         }
       }
 
-      // Apply wind forces periodically
+      // Apply wind forces
       windTimerRef.current += 1000 / 60;
-      if (windTimerRef.current > 3000 + Math.random() * 4000) {
+      const windInterval = 3000 + Math.random() * 4000;
+      if (windTimerRef.current > windInterval) {
         windTimerRef.current = 0;
-        const windStrength = 0.001 + (gameState.timeElapsed / 60000) * 0.0005; // Increases over time
+        const windStrength = 0.0005 + (gameState.timeElapsed / 60000) * 0.0008;
         windForceRef.current = {
-          x: (Math.random() - 0.5) * windStrength,
-          y: (Math.random() - 0.5) * windStrength * 0.3,
+          x: (Math.random() - 0.5) * windStrength * 2,
+          y: (Math.random() - 0.5) * windStrength * 0.5,
         };
       }
 
-      // Apply wind force to blocks
+      // Apply wind to blocks
       bodiesRef.current.forEach((body) => {
         Body.applyForce(body, body.position, windForceRef.current);
       });
 
-      // Check for game over (too many blocks fallen)
-      const blocksInWorld = bodiesRef.current.filter(
-        (body) => body.position.y < height + 100,
-      );
-      if (
-        blocksInWorld.length < bodiesRef.current.length * 0.3 &&
-        gameState.blocksPlaced > 5
-      ) {
-        setGameState((prev) => ({ ...prev, gameActive: false }));
-      }
+      // Remove blocks that fell off screen
+      bodiesRef.current = bodiesRef.current.filter((body) => {
+        if (
+          body.position.y > height + 200 ||
+          body.position.x < -100 ||
+          body.position.x > width + 100
+        ) {
+          World.remove(world, body);
+          return false;
+        }
+        return true;
+      });
 
       // Calculate tower height
       let maxHeight = 0;
@@ -186,14 +273,24 @@ export default function TowerOfAlmostStability() {
         if (bodyHeight > maxHeight) maxHeight = bodyHeight;
       });
 
-      // Update game state
+      // Update time and score
       const timeElapsed = Math.floor(
         (Date.now() - gameStartTimeRef.current) / 1000,
       );
-      const score =
-        timeElapsed * 10 +
-        gameState.blocksPlaced * 5 +
-        Math.floor(maxHeight / 10);
+      const baseScore =
+        timeElapsed * 15 +
+        gameState.blocksPlaced * 8 +
+        Math.floor(maxHeight / 15);
+      const score = Math.floor(baseScore * gameState.comboMultiplier);
+
+      // Check game over
+      const blocksInWorld = bodiesRef.current.length;
+      if (
+        blocksInWorld < gameState.blocksPlaced * 0.2 &&
+        gameState.blocksPlaced > 8
+      ) {
+        setGameState((prev) => ({ ...prev, gameActive: false }));
+      }
 
       setGameState((prev) => ({
         ...prev,
@@ -202,21 +299,50 @@ export default function TowerOfAlmostStability() {
         towerHeight: Math.max(0, maxHeight),
       }));
 
-      // Render
-      ctx.fillStyle = "#1a1a2e";
+      // Update particles
+      particlesRef.current = particlesRef.current
+        .map((p) => ({
+          ...p,
+          x: p.x + p.vx,
+          y: p.y + p.vy,
+          vy: p.vy + 0.3,
+          life: p.life - 0.02,
+        }))
+        .filter((p) => p.life > 0);
+
+      // RENDER
+      ctx.fillStyle = "#0a0e27";
       ctx.fillRect(0, 0, width, height);
 
       // Draw gradient background
       const gradient = ctx.createLinearGradient(0, 0, 0, height);
-      gradient.addColorStop(0, "#16213e");
-      gradient.addColorStop(1, "#0f3460");
+      gradient.addColorStop(0, "#1a1f4d");
+      gradient.addColorStop(0.5, "#0f1535");
+      gradient.addColorStop(1, "#050812");
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, width, height);
 
-      // Draw blocks
+      // Apply screen shake for gravity changes
+      ctx.save();
+      if (gravityShakeRef.current > 0) {
+        const shake = gravityShakeRef.current;
+        ctx.translate(
+          (Math.random() - 0.5) * shake,
+          (Math.random() - 0.5) * shake,
+        );
+        gravityShakeRef.current -= 1;
+      }
+
+      // Draw blocks with better visuals
       bodiesRef.current.forEach((body, index) => {
         const vertices = body.vertices;
-        ctx.fillStyle = `hsl(${(index * 30) % 360}, 70%, 50%)`;
+        const hue = (index * 45 + blockColorRef.current) % 360;
+        ctx.fillStyle = `hsl(${hue}, 85%, 55%)`;
+        ctx.shadowColor = `hsl(${hue}, 85%, 25%)`;
+        ctx.shadowBlur = 15;
+        ctx.shadowOffsetX = 3;
+        ctx.shadowOffsetY = 3;
+
         ctx.beginPath();
         ctx.moveTo(vertices[0].x, vertices[0].y);
         for (let i = 1; i < vertices.length; i++) {
@@ -226,69 +352,162 @@ export default function TowerOfAlmostStability() {
         ctx.fill();
 
         // Draw border
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
         ctx.lineWidth = 2;
         ctx.stroke();
       });
 
-      // Draw walls
-      ctx.fillStyle = "rgba(100, 100, 100, 0.5)";
-      walls.forEach((wall) => {
-        const vertices = wall.vertices;
-        ctx.beginPath();
-        ctx.moveTo(vertices[0].x, vertices[0].y);
-        for (let i = 1; i < vertices.length; i++) {
-          ctx.lineTo(vertices[i].x, vertices[i].y);
+      // Draw block preview at cursor
+      if (gameState.gameStarted && gameState.gameActive) {
+        const previewSize = 35;
+        ctx.fillStyle = "rgba(100, 200, 255, 0.3)";
+        ctx.fillRect(
+          mouseRef.current.x - previewSize / 2,
+          mouseRef.current.y - previewSize / 2,
+          previewSize,
+          previewSize,
+        );
+        ctx.strokeStyle = "rgba(100, 200, 255, 0.6)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+          mouseRef.current.x - previewSize / 2,
+          mouseRef.current.y - previewSize / 2,
+          previewSize,
+          previewSize,
+        );
+      }
+
+      // Draw particles
+      particlesRef.current.forEach((p) => {
+        if (p.text) {
+          ctx.fillStyle = `rgba(255, 255, 100, ${p.life})`;
+          ctx.font = `bold ${p.size}px Arial`;
+          ctx.textAlign = "center";
+          ctx.fillText(p.text, p.x, p.y);
+        } else {
+          ctx.fillStyle = `rgba(100, 200, 255, ${p.life * 0.8})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+          ctx.fill();
         }
-        ctx.closePath();
-        ctx.fill();
       });
 
-      // Draw UI
-      ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-      ctx.fillRect(10, 10, 300, 150);
+      ctx.restore();
 
-      ctx.fillStyle = "#00ff00";
-      ctx.font = "bold 24px Arial";
-      ctx.fillText(`Score: ${gameState.score}`, 20, 40);
-      ctx.fillText(`Time: ${gameState.timeElapsed}s`, 20, 70);
-      ctx.fillText(`Blocks: ${gameState.blocksPlaced}`, 20, 100);
-      ctx.fillText(`Height: ${Math.floor(gameState.towerHeight)}px`, 20, 130);
+      // Draw UI Panel
+      ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.fillRect(15, 15, 320, 200);
+      ctx.strokeStyle = "rgba(100, 200, 255, 0.5)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(15, 15, 320, 200);
 
-      // Draw gravity indicator
-      ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-      ctx.font = "16px Arial";
-      const gravityLabels = ["↓ Down", "← Left", "→ Right", "↑ Up"];
-      ctx.fillText(`Gravity: ${gravityLabels[gravityDirection]}`, 20, 160);
+      ctx.fillStyle = "#00ff88";
+      ctx.font = "bold 28px Arial";
+      ctx.textAlign = "left";
+      ctx.fillText(`SCORE: ${gameState.score}`, 30, 50);
 
-      // Draw game over message
-      if (!gameState.gameActive) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.fillStyle = "#ffaa00";
+      ctx.font = "bold 20px Arial";
+      ctx.fillText(`TIME: ${gameState.timeElapsed}s`, 30, 80);
+      ctx.fillText(`BLOCKS: ${gameState.blocksPlaced}`, 30, 110);
+      ctx.fillText(`HEIGHT: ${Math.floor(gameState.towerHeight)}px`, 30, 140);
+
+      // Draw gravity indicator with animation
+      const gravityLabels = ["↓ DOWN", "← LEFT", "→ RIGHT", "↑ UP"];
+      ctx.fillStyle = "#ff6b9d";
+      ctx.font = "bold 18px Arial";
+      ctx.fillText(
+        `GRAVITY: ${gravityLabels[gravityDirectionRef.current]}`,
+        30,
+        170,
+      );
+
+      // Draw wind indicator
+      const windStrength =
+        Math.abs(windForceRef.current.x) + Math.abs(windForceRef.current.y);
+      ctx.fillStyle = windStrength > 0.0008 ? "#ff4444" : "#44ff44";
+      ctx.font = "bold 16px Arial";
+      ctx.fillText(
+        `WIND: ${windStrength > 0.0008 ? "ACTIVE" : "calm"}`,
+        30,
+        195,
+      );
+
+      // Draw start screen
+      if (!gameState.gameStarted) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
         ctx.fillRect(0, 0, width, height);
-        ctx.fillStyle = "#ff0000";
-        ctx.font = "bold 48px Arial";
+
+        ctx.fillStyle = "#00ff88";
+        ctx.font = "bold 72px Arial";
         ctx.textAlign = "center";
-        ctx.fillText("TOWER COLLAPSED!", width / 2, height / 2 - 40);
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "24px Arial";
+        ctx.fillText("TOWER OF ALMOST", width / 2, height / 2 - 100);
+        ctx.fillText("STABILITY", width / 2, height / 2 - 20);
+
+        ctx.fillStyle = "#ffaa00";
+        ctx.font = "bold 32px Arial";
+        ctx.fillText("Click to Start", width / 2, height / 2 + 80);
+
+        ctx.fillStyle = "#aaaaaa";
+        ctx.font = "20px Arial";
         ctx.fillText(
-          `Final Score: ${gameState.score}`,
+          "Build towers as gravity shifts every 10 seconds",
           width / 2,
-          height / 2 + 20,
+          height / 2 + 140,
         );
+        ctx.fillText(
+          "Survive as long as possible",
+          width / 2,
+          height / 2 + 170,
+        );
+      }
+
+      // Draw game over screen
+      if (!gameState.gameActive && gameState.gameStarted) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.fillStyle = "#ff4444";
+        ctx.font = "bold 80px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("TOWER COLLAPSED!", width / 2, height / 2 - 80);
+
+        ctx.fillStyle = "#ffaa00";
+        ctx.font = "bold 48px Arial";
+        ctx.fillText(
+          `FINAL SCORE: ${gameState.score}`,
+          width / 2,
+          height / 2 + 40,
+        );
+
+        ctx.fillStyle = "#00ff88";
+        ctx.font = "bold 36px Arial";
         ctx.fillText(
           `Survived: ${gameState.timeElapsed}s`,
           width / 2,
-          height / 2 + 60,
+          height / 2 + 100,
         );
-        ctx.textAlign = "left";
+        ctx.fillText(
+          `Blocks Placed: ${gameState.blocksPlaced}`,
+          width / 2,
+          height / 2 + 150,
+        );
+
+        ctx.fillStyle = "#aaaaaa";
+        ctx.font = "24px Arial";
+        ctx.fillText("Refresh page to play again", width / 2, height / 2 + 220);
       }
 
       // Draw instructions
-      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-      ctx.font = "14px Arial";
-      ctx.fillText("Click to place blocks", width - 200, height - 20);
-    }, 1000 / 60); // 60 FPS
+      if (gameState.gameStarted && gameState.gameActive) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+        ctx.font = "16px Arial";
+        ctx.textAlign = "right";
+        ctx.fillText("Click to place blocks", width - 30, height - 30);
+      }
+
+      blockColorRef.current += 0.5;
+    }, 1000 / 60);
 
     // Handle window resize
     const handleResize = () => {
@@ -301,30 +520,27 @@ export default function TowerOfAlmostStability() {
     return () => {
       clearInterval(gameLoop);
       canvas.removeEventListener("click", handleCanvasClick);
+      canvas.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("resize", handleResize);
     };
-  }, [gameState.gameActive, gameState.blocksPlaced, gameState.timeElapsed]);
+  }, [
+    gameState.gameStarted,
+    gameState.gameActive,
+    gameState.blocksPlaced,
+    gameState.timeElapsed,
+    gameState.comboMultiplier,
+  ]);
 
   const handleReset = () => {
     window.location.reload();
   };
 
   return (
-    <div className="w-full h-screen bg-gray-900 flex flex-col">
+    <div className="w-full h-screen bg-gray-950 flex flex-col overflow-hidden">
       <canvas
         ref={canvasRef}
-        className="flex-1 bg-gradient-to-b from-blue-900 to-blue-950 cursor-crosshair"
+        className="flex-1 bg-gradient-to-b from-blue-950 to-black cursor-crosshair"
       />
-      {!gameState.gameActive && (
-        <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2">
-          <button
-            onClick={handleReset}
-            className="px-8 py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg text-lg"
-          >
-            Play Again
-          </button>
-        </div>
-      )}
     </div>
   );
 }

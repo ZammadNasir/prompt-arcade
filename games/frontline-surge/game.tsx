@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
 
-// --- GAME CONFIG & CONSTANTS ---
+// --- MAP & SPAWN CONFIGURATION ---
 const MAP_WIDTH = 16;
 const MAP_HEIGHT = 16;
 const MAP = [
@@ -25,18 +26,17 @@ const MAP = [
 ];
 
 const SPAWN_POINTS = [
-  { x: 1.5, y: 1.5 },
-  { x: 14.5, y: 1.5 },
-  { x: 1.5, y: 14.5 },
-  { x: 14.5, y: 14.5 },
-  { x: 8.5, y: 1.5 },
-  { x: 8.5, y: 14.5 },
+  { x: 1.5, z: 1.5 },
+  { x: 14.5, z: 1.5 },
+  { x: 1.5, z: 14.5 },
+  { x: 14.5, z: 14.5 },
+  { x: 8.5, z: 1.5 },
+  { x: 8.5, z: 14.5 },
 ];
 
 interface Enemy {
   id: number;
-  x: number;
-  y: number;
+  mesh: THREE.Group;
   health: number;
   maxHealth: number;
   speed: number;
@@ -44,11 +44,11 @@ interface Enemy {
   isDead: boolean;
 }
 
-export default function FrontlineSurge() {
+export default function FrontlineSurge3D() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Game States
+  // React HUD State
   const [gameState, setGameState] = useState<
     "START" | "PLAYING" | "INTERMISSION" | "GAMEOVER"
   >("START");
@@ -62,67 +62,400 @@ export default function FrontlineSurge() {
   const [intermissionCount, setIntermissionCount] = useState(3);
   const [pointerLocked, setPointerLocked] = useState(false);
 
-  // High-frequency engine variables
-  const playerRef = useRef({
-    x: 8.5,
-    y: 8.5,
-    dirX: 0,
-    dirY: -1,
-    planeX: 0.66,
-    planeY: 0,
-    angle: -Math.PI / 2,
-    speedBoost: 1,
-  });
+  // Three.js Core Refs
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const flashLightRef = useRef<THREE.PointLight | null>(null);
+  const weaponGroupRef = useRef<THREE.Group | null>(null);
 
+  // High frequency input vectors
   const keysRef = useRef<{ [key: string]: boolean }>({});
   const enemiesRef = useRef<Enemy[]>([]);
   const nextEnemyId = useRef(0);
   const lastShotTime = useRef(0);
   const isShootingRef = useRef(false);
-  const muzzleFlashRef = useRef(0);
-  const lastPointerUnlockTime = useRef<number>(0);
+  const muzzleFlashTicksRef = useRef(0);
 
-  // Monitor canvas pointer lock state alterations
+  // Pointer lock state listeners
   useEffect(() => {
     const handleLockChange = () => {
-      if (document.pointerLockElement === canvasRef.current) {
-        setPointerLocked(true);
-      } else {
-        lastPointerUnlockTime.current = performance.now();
-        setPointerLocked(false);
-      }
+      setPointerLocked(document.pointerLockElement === canvasRef.current);
     };
-
-    const handleLockError = () => {
-      lastPointerUnlockTime.current = performance.now();
-      setPointerLocked(false);
-      console.warn("Pointer lock request failed or was blocked.");
-    };
-
     document.addEventListener("pointerlockchange", handleLockChange);
-    document.addEventListener("pointerlockerror", handleLockError);
-    return () => {
+    return () =>
       document.removeEventListener("pointerlockchange", handleLockChange);
-      document.removeEventListener("pointerlockerror", handleLockError);
-    };
   }, []);
 
   const lockPointer = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const now = performance.now();
-    if (now - lastPointerUnlockTime.current < 250) {
-      window.setTimeout(() => lockPointer(), 260);
-      return;
-    }
-
-    try {
-      canvas.requestPointerLock();
-    } catch (error) {
-      console.warn("Failed to request pointer lock:", error);
-    }
+    canvasRef.current?.requestPointerLock();
   };
+
+  // Build Procedural Humanoid Robot Mesh
+  const createHumanoidMesh = (color: number) => {
+    const group = new THREE.Group();
+
+    // Materials
+    const armorMat = new THREE.MeshStandardMaterial({
+      color: color,
+      roughness: 0.4,
+      metalness: 0.7,
+    });
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1a1a,
+      roughness: 0.6,
+    });
+    const visorMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+
+    // Torso Chassis
+    const torso = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.7, 0.3),
+      armorMat,
+    );
+    torso.position.y = 0.85;
+    group.add(torso);
+
+    // Head
+    const head = new THREE.Mesh(
+      new THREE.BoxGeometry(0.24, 0.26, 0.24),
+      armorMat,
+    );
+    head.position.y = 1.35;
+    group.add(head);
+
+    // Tactical Visor Eye Line
+    const visor = new THREE.Mesh(
+      new THREE.BoxGeometry(0.26, 0.05, 0.06),
+      visorMat,
+    );
+    visor.position.set(0, 1.36, 0.11);
+    group.add(visor);
+
+    // Left Arm Configuration
+    const leftUpperArm = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 0.35),
+      frameMat,
+    );
+    leftUpperArm.position.set(-0.35, 0.85, 0);
+    leftUpperArm.rotation.z = Math.PI / 12;
+    group.add(leftUpperArm);
+
+    const leftShoulder = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.12, 0.15),
+      armorMat,
+    );
+    leftShoulder.position.set(-0.32, 1.0, 0);
+    group.add(leftShoulder);
+
+    // Right Arm Configuration (Forward Threat Pose)
+    const rightUpperArm = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 0.35),
+      frameMat,
+    );
+    rightUpperArm.position.set(0.35, 0.85, 0.1);
+    rightUpperArm.rotation.x = -Math.PI / 3;
+    group.add(rightUpperArm);
+
+    const rightShoulder = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.12, 0.15),
+      armorMat,
+    );
+    rightShoulder.position.set(0.32, 1.0, 0);
+    group.add(rightShoulder);
+
+    // Lower Leg Plating (As single robust stabilization block)
+    const legs = new THREE.Mesh(
+      new THREE.BoxGeometry(0.4, 0.5, 0.25),
+      frameMat,
+    );
+    legs.position.y = 0.25;
+    group.add(legs);
+
+    // Apply global shadows cast capacities
+    group.traverse((node) => {
+      if (node instanceof THREE.Mesh) {
+        node.castShadow = true;
+        node.receiveShadow = true;
+      }
+    });
+
+    return group;
+  };
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+
+    // Create Scene
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x10141c);
+    scene.fog = new THREE.FogExp2(0x10141c, 0.02);
+    sceneRef.current = scene;
+
+    // Camera
+    const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+    camera.rotation.order = "YXZ";
+    camera.position.set(2, 1.7, 2);
+    cameraRef.current = camera;
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({
+      canvas: canvasRef.current,
+      antialias: true,
+    });
+
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    // Modern Three.js color management
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    // Make scene brighter
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.5;
+
+    rendererRef.current = renderer;
+
+    // =========================
+    // LIGHTING
+    // =========================
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+    scene.add(ambientLight);
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x666666, 1.0);
+    hemiLight.position.set(0, 20, 0);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
+    dirLight.position.set(10, 20, 10);
+
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+
+    dirLight.shadow.camera.left = -25;
+    dirLight.shadow.camera.right = 25;
+    dirLight.shadow.camera.top = 25;
+    dirLight.shadow.camera.bottom = -25;
+
+    scene.add(dirLight);
+
+    // =========================
+    // FLASHLIGHT
+    // =========================
+
+    const flashlight = new THREE.SpotLight(
+      0xffffff,
+      8,
+      15,
+      Math.PI / 5,
+      0.4,
+      1,
+    );
+
+    flashlight.castShadow = true;
+    scene.add(flashlight);
+
+    const flashlightTarget = new THREE.Object3D();
+    scene.add(flashlightTarget);
+
+    flashlight.target = flashlightTarget;
+
+    // Muzzle flash light
+    const flashLight = new THREE.PointLight(0xffaa44, 0, 8);
+    scene.add(flashLight);
+    flashLightRef.current = flashLight;
+
+    // =========================
+    // MATERIALS
+    // =========================
+
+    const wallGeo = new THREE.BoxGeometry(1, 3, 1);
+
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0x555a66,
+      roughness: 0.55,
+      metalness: 0.15,
+    });
+
+    const floorGeo = new THREE.PlaneGeometry(MAP_WIDTH, MAP_HEIGHT);
+
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x3a3f48,
+      roughness: 0.8,
+      metalness: 0,
+    });
+
+    // =========================
+    // FLOOR
+    // =========================
+
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(MAP_WIDTH / 2, 0, MAP_HEIGHT / 2);
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    // =========================
+    // CEILING
+    // =========================
+
+    const ceiling = new THREE.Mesh(
+      floorGeo,
+      new THREE.MeshStandardMaterial({
+        color: 0x40454f,
+        roughness: 0.8,
+      }),
+    );
+
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.set(MAP_WIDTH / 2, 3, MAP_HEIGHT / 2);
+
+    ceiling.receiveShadow = true;
+    scene.add(ceiling);
+
+    // =========================
+    // WALLS
+    // =========================
+
+    for (let z = 0; z < MAP_HEIGHT; z++) {
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        if (MAP[z][x] === 1) {
+          const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+
+          wallMesh.position.set(x + 0.5, 1.5, z + 0.5);
+
+          wallMesh.castShadow = true;
+          wallMesh.receiveShadow = true;
+
+          scene.add(wallMesh);
+        }
+      }
+    }
+
+    // =========================
+    // WEAPON MODEL
+    // =========================
+
+    const weaponGroup = new THREE.Group();
+
+    const ironMat = new THREE.MeshStandardMaterial({
+      color: 0x6f7788,
+      roughness: 0.3,
+      metalness: 0.9,
+    });
+
+    const barrelGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.4, 16);
+
+    const barrel = new THREE.Mesh(barrelGeo, ironMat);
+
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0.18, -0.22, -0.45);
+
+    weaponGroup.add(barrel);
+
+    const receiver = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.08, 0.3),
+      ironMat,
+    );
+
+    receiver.position.set(0.18, -0.2, -0.25);
+
+    weaponGroup.add(receiver);
+
+    scene.add(weaponGroup);
+
+    weaponGroupRef.current = weaponGroup;
+
+    // =========================
+    // RESIZE
+    // =========================
+
+    const handleResize = () => {
+      if (!containerRef.current || !rendererRef.current || !cameraRef.current)
+        return;
+
+      const w = containerRef.current.clientWidth;
+      const h = containerRef.current.clientHeight;
+
+      cameraRef.current.aspect = w / h;
+      cameraRef.current.updateProjectionMatrix();
+
+      rendererRef.current.setSize(w, h);
+      rendererRef.current.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    };
+
+    window.addEventListener("resize", handleResize);
+    handleResize();
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+
+      renderer.dispose();
+    };
+  }, []);
+
+  // Sync Input Listeners
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (gameState !== "PLAYING") return;
+      const key = e.key.toLowerCase();
+      keysRef.current[key] = true;
+      if (key === "r") reloadWeapon();
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysRef.current[e.key.toLowerCase()] = false;
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (
+        gameState !== "PLAYING" ||
+        document.pointerLockElement !== canvasRef.current ||
+        !cameraRef.current
+      )
+        return;
+
+      const sensitivity = 0.0022;
+      // Handle Left/Right (Yaw)
+      cameraRef.current.rotation.y -= e.movementX * sensitivity;
+      // Handle Up/Down (Pitch) -> Directly fixes your limitation
+      cameraRef.current.rotation.x -= e.movementY * sensitivity;
+
+      // Lock boundaries to prevent looking behind overhead
+      cameraRef.current.rotation.x = Math.max(
+        -Math.PI / 2.3,
+        Math.min(Math.PI / 2.3, cameraRef.current.rotation.x),
+      );
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (gameState !== "PLAYING") return;
+      if (document.pointerLockElement !== canvasRef.current) {
+        lockPointer();
+        return;
+      }
+      if (e.button === 0) isShootingRef.current = true;
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (e.button === 0) isShootingRef.current = false;
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [gameState, ammo, isReloading]);
 
   const startGame = () => {
     setHealth(100);
@@ -130,54 +463,59 @@ export default function FrontlineSurge() {
     setWave(1);
     setScore(0);
     setIsReloading(false);
-    playerRef.current = {
-      x: 8.5,
-      y: 8.5,
-      dirX: 0,
-      dirY: -1,
-      planeX: 0.66,
-      planeY: 0,
-      angle: -Math.PI / 2,
-      speedBoost: 1,
-    };
-    enemiesRef.current = [];
 
-    generateWave(1);
+    if (cameraRef.current && sceneRef.current) {
+      cameraRef.current.position.set(8.5, 1.2, 8.5);
+      cameraRef.current.rotation.set(0, -Math.PI / 2, 0);
+
+      // Clear existing models
+      enemiesRef.current.forEach((e) => sceneRef.current?.remove(e.mesh));
+      enemiesRef.current = [];
+      generateWave(1);
+    }
+
     setGameState("PLAYING");
-    lockPointer();
+    setTimeout(() => lockPointer(), 50);
   };
 
   const generateWave = (waveNum: number) => {
-    const enemyCount = 3 + waveNum * 2;
-    const baseHealth = 40 + waveNum * 10;
-    const baseSpeed = 0.02 + Math.min(waveNum * 0.005, 0.025);
+    if (!sceneRef.current) return;
 
-    const newEnemies: Enemy[] = [];
-    for (let i = 0; i < enemyCount; i++) {
-      const spawn =
+    const spawnCount = 3 + waveNum * 2;
+    const enemyHealth = 40 + waveNum * 10;
+    const moveSpeed = 0.02 + Math.min(waveNum * 0.004, 0.03);
+
+    const activeEnemies: Enemy[] = [];
+    for (let i = 0; i < spawnCount; i++) {
+      const point =
         SPAWN_POINTS[Math.floor(Math.random() * SPAWN_POINTS.length)];
-      const scatterX = (Math.random() - 0.5) * 0.4;
-      const scatterY = (Math.random() - 0.5) * 0.4;
+      const scatterX = (Math.random() - 0.5) * 0.5;
+      const scatterZ = (Math.random() - 0.5) * 0.5;
 
-      newEnemies.push({
+      // Instantiate structural mesh group
+      const botMesh = createHumanoidMesh(0x5c6970);
+      botMesh.position.set(point.x + scatterX, 0, point.z + scatterZ);
+      sceneRef.current.add(botMesh);
+
+      activeEnemies.push({
         id: nextEnemyId.current++,
-        x: spawn.x + scatterX,
-        y: spawn.y + scatterY,
-        health: baseHealth,
-        maxHealth: baseHealth,
-        speed: baseSpeed,
+        mesh: botMesh,
+        health: enemyHealth,
+        maxHealth: enemyHealth,
+        speed: moveSpeed,
         flashTicks: 0,
         isDead: false,
       });
     }
-    enemiesRef.current = newEnemies;
-    setEnemiesRemaining(newEnemies.length);
+
+    enemiesRef.current = activeEnemies;
+    setEnemiesRemaining(activeEnemies.length);
   };
 
   const startIntermission = (nextWave: number) => {
     setGameState("INTERMISSION");
     setIntermissionCount(3);
-    setHealth((prev) => Math.min(100, prev + 35));
+    setHealth((prev) => Math.min(100, prev + 30));
     setAmmo(maxAmmo);
 
     const timer = setInterval(() => {
@@ -203,505 +541,245 @@ export default function FrontlineSurge() {
     }, 1200);
   };
 
-  // Bind Global Keyboard and Mouse Listeners Safely
+  // Simulation Loop Frame Handling
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (gameState !== "PLAYING") return;
-      const key = e.key.toLowerCase();
-      keysRef.current[key] = true;
+    let frameId: number;
 
-      if (key === "r") {
-        reloadWeapon();
+    const processFrame = () => {
+      if (gameState === "PLAYING" && cameraRef.current && sceneRef.current) {
+        updatePlayerVelocity();
+        updateHostileAI();
+        updateTacticalFiring();
       }
-    };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      keysRef.current[e.key.toLowerCase()] = false;
-    };
+      // Render updated frame
+      if (rendererRef.current && sceneRef.current && cameraRef.current) {
+        // Lock gun placement directly in alignment with the viewport camera transformation matrix
+        if (weaponGroupRef.current) {
+          const weapon = weaponGroupRef.current;
+          weapon.position.copy(cameraRef.current.position);
+          weapon.rotation.copy(cameraRef.current.rotation);
 
-    const handleMouseMove = (e: MouseEvent) => {
-      if (
-        gameState !== "PLAYING" ||
-        document.pointerLockElement !== canvasRef.current
-      )
-        return;
+          // Apply kinetic idle sway matrix calculation
+          const t = performance.now() * 0.004;
+          const moving =
+            keysRef.current["w"] ||
+            keysRef.current["s"] ||
+            keysRef.current["a"] ||
+            keysRef.current["d"];
+          if (moving) {
+            weapon.translateX(Math.sin(t * 2) * 0.015);
+            weapon.translateY(Math.abs(Math.cos(t * 2)) * 0.01);
+          } else {
+            weapon.translateY(Math.sin(t) * 0.003);
+          }
 
-      const player = playerRef.current;
-      const sensitivity = 0.0025;
-      player.angle += e.movementX * sensitivity;
+          if (isReloading) {
+            weapon.translateY(-0.15); // Drop firearm during reload cycle
+            weapon.rotation.z +=
+              Math.sin(((performance.now() % 1200) / 1200) * Math.PI) * 0.2;
+          }
+        }
 
-      player.dirX = Math.cos(player.angle);
-      player.dirY = Math.sin(player.angle);
-      player.planeX = -Math.sin(player.angle) * 0.66;
-      player.planeY = Math.cos(player.angle) * 0.66;
-    };
-
-    const handleMouseDown = (e: MouseEvent) => {
-      if (gameState !== "PLAYING") return; // Ignore locks during menu views
-
-      if (document.pointerLockElement !== canvasRef.current) {
-        lockPointer();
-        return;
+        rendererRef.current.render(sceneRef.current, cameraRef.current);
       }
-      if (e.button === 0) {
-        isShootingRef.current = true;
-      }
+
+      frameId = requestAnimationFrame(processFrame);
     };
 
-    const handleMouseUp = (e: MouseEvent) => {
-      if (e.button === 0) {
-        isShootingRef.current = false;
-      }
-    };
+    const updatePlayerVelocity = () => {
+      const camera = cameraRef.current!;
+      const speed = keysRef.current["shift"] ? 0.07 : 0.045;
 
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mousedown", handleMouseDown);
-    window.addEventListener("mouseup", handleMouseUp);
+      const fwdVector = new THREE.Vector3(0, 0, -1).applyQuaternion(
+        camera.quaternion,
+      );
+      fwdVector.y = 0;
+      fwdVector.normalize();
 
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mousedown", handleMouseDown);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [ammo, isReloading, gameState]);
+      const sideVector = new THREE.Vector3(1, 0, 0).applyQuaternion(
+        camera.quaternion,
+      );
+      sideVector.y = 0;
+      sideVector.normalize();
 
-  // Main Simulation Loop
-  useEffect(() => {
-    let animationFrameId: number;
-
-    const tick = () => {
-      if (gameState === "PLAYING") {
-        updatePlayerMovement();
-        updateEnemies();
-        handleWeaponFiring();
-      }
-      renderFrame();
-      animationFrameId = requestAnimationFrame(tick);
-    };
-
-    const updatePlayerMovement = () => {
-      const player = playerRef.current;
-      let moveSpeed = keysRef.current["shift"] ? 0.08 : 0.05;
       let moveX = 0;
-      let moveY = 0;
+      let moveZ = 0;
 
-      if (keysRef.current["w"] || keysRef.current["arrowup"]) {
-        moveX += player.dirX * moveSpeed;
-        moveY += player.dirY * moveSpeed;
+      if (keysRef.current["w"]) {
+        moveX += fwdVector.x * speed;
+        moveZ += fwdVector.z * speed;
       }
-      if (keysRef.current["s"] || keysRef.current["arrowdown"]) {
-        moveX -= player.dirX * moveSpeed;
-        moveY -= player.dirY * moveSpeed;
+      if (keysRef.current["s"]) {
+        moveX -= fwdVector.x * speed;
+        moveZ -= fwdVector.z * speed;
       }
       if (keysRef.current["a"]) {
-        moveX += player.dirY * moveSpeed;
-        moveY -= player.dirX * moveSpeed;
+        moveX -= sideVector.x * speed;
+        moveZ -= sideVector.z * speed;
       }
       if (keysRef.current["d"]) {
-        moveX -= player.dirY * moveSpeed;
-        moveY += player.dirX * moveSpeed;
+        moveX += sideVector.x * speed;
+        moveZ += sideVector.z * speed;
       }
 
-      const buffer = 0.2;
-      const checkX = player.x + moveX + (moveX > 0 ? buffer : -buffer);
-      if (MAP[Math.floor(player.y)][Math.floor(checkX)] === 0) {
-        player.x += moveX;
+      // Map Grid Edge Collision Checking
+      const buffer = 0.25;
+      const targetX = camera.position.x + moveX;
+      const targetZ = camera.position.z + moveZ;
+
+      const boundX = moveX > 0 ? buffer : -buffer;
+      if (
+        MAP[Math.floor(camera.position.z)][Math.floor(targetX + boundX)] === 0
+      ) {
+        camera.position.x = targetX;
       }
-      const checkY = player.y + moveY + (moveY > 0 ? buffer : -buffer);
-      if (MAP[Math.floor(checkY)][Math.floor(player.x)] === 0) {
-        player.y += moveY;
+      const boundZ = moveZ > 0 ? buffer : -buffer;
+      if (
+        MAP[Math.floor(targetZ + boundZ)][Math.floor(camera.position.x)] === 0
+      ) {
+        camera.position.z = targetZ;
       }
     };
 
-    const updateEnemies = () => {
-      const player = playerRef.current;
-      const aliveEnemies = enemiesRef.current.filter((e) => !e.isDead);
+    const updateHostileAI = () => {
+      const camera = cameraRef.current!;
+      const activeBots = enemiesRef.current.filter((e) => !e.isDead);
 
-      aliveEnemies.forEach((enemy) => {
-        if (enemy.flashTicks > 0) enemy.flashTicks--;
+      activeBots.forEach((bot) => {
+        if (bot.flashTicks > 0) {
+          bot.flashTicks--;
+          if (bot.flashTicks === 0) {
+            // Restore default gray armor tint
+            bot.mesh.traverse((n) => {
+              if (n instanceof THREE.Mesh && n.material.color)
+                n.material.color.setHex(0x5c6970);
+            });
+          }
+        }
 
-        const dx = player.x - enemy.x;
-        const dy = player.y - enemy.y;
-        const dist = Math.hypot(dx, dy);
+        const dx = camera.position.x - bot.mesh.position.x;
+        const dz = camera.position.z - bot.mesh.position.z;
+        const dist = Math.hypot(dx, dz);
 
-        if (dist > 0.25) {
-          const stepX = (dx / dist) * enemy.speed;
-          const stepY = (dy / dist) * enemy.speed;
+        // Turn tracking loop toward player positioning
+        bot.mesh.lookAt(
+          camera.position.x,
+          bot.mesh.position.y,
+          camera.position.z,
+        );
 
-          if (MAP[Math.floor(enemy.y)][Math.floor(enemy.x + stepX)] === 0)
-            enemy.x += stepX;
-          if (MAP[Math.floor(enemy.y + stepY)][Math.floor(enemy.x)] === 0)
-            enemy.y += stepY;
+        if (dist > 0.45) {
+          const stepX = (dx / dist) * bot.speed;
+          const stepZ = (dz / dist) * bot.speed;
+
+          if (
+            MAP[Math.floor(bot.mesh.position.z)][
+              Math.floor(bot.mesh.position.x + stepX)
+            ] === 0
+          )
+            bot.mesh.position.x += stepX;
+          if (
+            MAP[Math.floor(bot.mesh.position.z + stepZ)][
+              Math.floor(bot.mesh.position.x)
+            ] === 0
+          )
+            bot.mesh.position.z += stepZ;
         } else {
+          // Continuous proximity payload strike
           setHealth((prev) => {
-            const nextHealth = prev - 0.5;
-            if (nextHealth <= 0) {
+            const current = prev - 0.4;
+            if (current <= 0) {
               setGameState("GAMEOVER");
               try {
                 document.exitPointerLock();
-              } catch (e) {}
+              } catch {}
               return 0;
             }
-            return nextHealth;
+            return current;
           });
         }
       });
     };
 
-    const handleWeaponFiring = () => {
-      if (muzzleFlashRef.current > 0) muzzleFlashRef.current--;
+    const updateTacticalFiring = () => {
+      if (muzzleFlashTicksRef.current > 0) {
+        muzzleFlashTicksRef.current--;
+        if (muzzleFlashTicksRef.current === 0 && flashLightRef.current) {
+          flashLightRef.current.intensity = 0;
+        }
+      }
+
       if (!isShootingRef.current || isReloading || ammo <= 0) return;
 
       const now = performance.now();
-      if (now - lastShotTime.current < 120) return;
+      if (now - lastShotTime.current < 110) return; // Fire rate threshold
       lastShotTime.current = now;
 
       setAmmo((prev) => {
         const next = prev - 1;
-        if (next === 0) setTimeout(() => reloadWeapon(), 100);
+        if (next === 0) setTimeout(() => reloadWeapon(), 150);
         return next;
       });
 
-      muzzleFlashRef.current = 3;
+      // Illuminate environment with muzzle point-light flash
+      if (flashLightRef.current && cameraRef.current) {
+        flashLightRef.current.position.copy(cameraRef.current.position);
+        flashLightRef.current.intensity = 15;
+        muzzleFlashTicksRef.current = 2;
+      }
 
-      const player = playerRef.current;
-      let closestEnemy: Enemy | null = null;
-      let closestDistance = Infinity;
+      // Three.js Raycaster replaces inaccurate screen center math
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), cameraRef.current!);
 
-      enemiesRef.current.forEach((enemy) => {
-        if (enemy.isDead) return;
+      const targets = enemiesRef.current.filter((e) => !e.isDead);
+      let closestHitBot: Enemy | null = null;
+      let minDistance = Infinity;
 
-        const vecX = enemy.x - player.x;
-        const vecY = enemy.y - player.y;
-
-        const invDet =
-          1.0 / (player.planeX * player.dirY - player.dirX * player.planeY);
-        const transformX = invDet * (player.dirY * vecX - player.dirX * vecY);
-        const transformY =
-          invDet * (-player.planeY * vecX + player.planeX * vecY);
-
-        if (transformY > 0) {
-          const enemyScreenX = Math.floor(
-            (canvasRef.current!.width / 2) * (1 + transformX / transformY),
-          );
-          const screenTolerance = Math.max(30, 160 / transformY);
-
-          if (
-            Math.abs(enemyScreenX - canvasRef.current!.width / 2) <
-            screenTolerance
-          ) {
-            if (transformY < closestDistance) {
-              if (clearLineOfSight(player.x, player.y, enemy.x, enemy.y)) {
-                closestDistance = transformY;
-                closestEnemy = enemy;
-              }
-            }
-          }
+      targets.forEach((bot) => {
+        // Collect intersections within the child meshes inside the enemy Group object
+        const intersects = raycaster.intersectObjects(bot.mesh.children);
+        if (intersects.length > 0 && intersects[0].distance < minDistance) {
+          minDistance = intersects[0].distance;
+          closestHitBot = bot;
         }
       });
 
-      if (closestEnemy) {
-        const enemy = closestEnemy as Enemy;
-        enemy.health -= 25;
-        enemy.flashTicks = 4;
-        if (enemy.health <= 0) {
-          enemy.isDead = true;
-          setScore((prev) => prev + 100);
+      if (closestHitBot) {
+        const bot = closestHitBot as Enemy;
+        bot.health -= 20;
+        bot.flashTicks = 3;
 
-          const activeCount = enemiesRef.current.filter(
-            (e) => !e.isDead,
-          ).length;
-          setEnemiesRemaining(activeCount);
+        // Flash target silhouette red
+        bot.mesh.traverse((n) => {
+          if (n instanceof THREE.Mesh && n.material.color)
+            n.material.color.setHex(0xff3333);
+        });
 
-          if (activeCount === 0) {
+        if (bot.health <= 0) {
+          bot.isDead = true;
+          sceneRef.current?.remove(bot.mesh);
+          setScore((prev) => prev + 150);
+
+          const totalLeft = enemiesRef.current.filter((e) => !e.isDead).length;
+          setEnemiesRemaining(totalLeft);
+
+          if (totalLeft === 0) {
             startIntermission(wave + 1);
           }
         }
       }
     };
 
-    const clearLineOfSight = (
-      x1: number,
-      y1: number,
-      x2: number,
-      y2: number,
-    ) => {
-      const distance = Math.hypot(x2 - x1, y2 - y1);
-      if (distance === 0) return true;
-      const steps = Math.ceil(distance * 3);
-      for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-        const cx = x1 + (x2 - x1) * t;
-        const cy = y1 + (y2 - y1) * t;
-        if (MAP[Math.floor(cy)][Math.floor(cx)] === 1) return false;
-      }
-      return true;
-    };
-
-    const renderFrame = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      const w = canvas.width;
-      const h = canvas.height;
-      if (w === 0 || h === 0) return;
-      const player = playerRef.current;
-
-      // Draw Ceiling & Floor
-      ctx.fillStyle = "#11141a";
-      ctx.fillRect(0, 0, w, h / 2);
-      ctx.fillStyle = "#1e222b";
-      ctx.fillRect(0, h / 2, w, h / 2);
-
-      const zBuffer: number[] = new Array(w).fill(Infinity);
-
-      // Raycast Walls
-      for (let x = 0; x < w; x++) {
-        const cameraX = (2 * x) / w - 1;
-        const rayDirX = player.dirX + player.planeX * cameraX;
-        const rayDirY = player.dirY + player.planeY * cameraX;
-
-        let mapX = Math.floor(player.x);
-        let mapY = Math.floor(player.y);
-
-        let sideDistX = 0;
-        let sideDistY = 0;
-
-        const deltaDistX = Math.abs(1 / (rayDirX || 1e-20));
-        const deltaDistY = Math.abs(1 / (rayDirY || 1e-20));
-        let perpWallDist = 0;
-
-        let stepX = 0;
-        let stepY = 0;
-        let hit = 0;
-        let side = 0;
-
-        if (rayDirX < 0) {
-          stepX = -1;
-          sideDistX = (player.x - mapX) * deltaDistX;
-        } else {
-          stepX = 1;
-          sideDistX = (mapX + 1.0 - player.x) * deltaDistX;
-        }
-
-        if (rayDirY < 0) {
-          stepY = -1;
-          sideDistY = (player.y - mapY) * deltaDistY;
-        } else {
-          stepY = 1;
-          sideDistY = (mapY + 1.0 - player.y) * deltaDistY;
-        }
-
-        while (hit === 0) {
-          if (sideDistX < sideDistY) {
-            sideDistX += deltaDistX;
-            mapX += stepX;
-            side = 0;
-          } else {
-            sideDistY += deltaDistY;
-            mapY += stepY;
-            side = 1;
-          }
-          if (mapX < 0 || mapX >= MAP_WIDTH || mapY < 0 || mapY >= MAP_HEIGHT)
-            break;
-          if (MAP[mapY][mapX] > 0) hit = 1;
-        }
-
-        if (side === 0)
-          perpWallDist =
-            (mapX - player.x + (1 - stepX) / 2) / (rayDirX || 1e-20);
-        else
-          perpWallDist =
-            (mapY - player.y + (1 - stepY) / 2) / (rayDirY || 1e-20);
-
-        if (perpWallDist <= 0) perpWallDist = 0.01;
-        zBuffer[x] = perpWallDist;
-
-        const lineHeight = Math.floor(h / perpWallDist);
-
-        let drawStart = -lineHeight / 2 + h / 2;
-        if (drawStart < 0) drawStart = 0;
-        let drawEnd = lineHeight / 2 + h / 2;
-        if (drawEnd >= h) drawEnd = h - 1;
-
-        const baseBright = side === 1 ? 140 : 100;
-        const depthFactor = Math.min(1, 4 / perpWallDist);
-        const r = Math.floor(baseBright * 0.4 * depthFactor);
-        const g = Math.floor(baseBright * 0.48 * depthFactor);
-        const b = Math.floor(baseBright * 0.6 * depthFactor);
-
-        ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
-        ctx.beginPath();
-        ctx.moveTo(x, drawStart);
-        ctx.lineTo(x, drawEnd);
-        ctx.stroke();
-
-        if (lineHeight > 20 && (mapX % 2 === 0 || mapY % 2 === 0)) {
-          ctx.fillStyle = `rgba(0, 240, 255, ${0.08 * depthFactor})`;
-          ctx.fillRect(x, drawStart, 1, Math.min(6, lineHeight * 0.05));
-        }
-      }
-
-      // Draw Sprite Enemies
-      const sortedEnemies = enemiesRef.current
-        .filter((e) => !e.isDead)
-        .map((e) => ({
-          ...e,
-          dist: Math.hypot(e.x - player.x, e.y - player.y),
-        }))
-        .sort((a, b) => b.dist - a.dist);
-
-      sortedEnemies.forEach((enemy) => {
-        const spriteX = enemy.x - player.x;
-        const spriteY = enemy.y - player.y;
-
-        const invDet =
-          1.0 / (player.planeX * player.dirY - player.dirX * player.planeY);
-        const transformX =
-          invDet * (player.dirY * spriteX - player.dirX * spriteY);
-        const transformY =
-          invDet * (-player.planeY * spriteX + player.planeX * spriteY);
-
-        if (transformY <= 0.1) return;
-
-        const spriteScreenX = Math.floor(
-          (w / 2) * (1 + transformX / transformY),
-        );
-        const spriteHeight = Math.abs(Math.floor(h / transformY));
-        let drawStartY = -spriteHeight / 2 + h / 2;
-        if (drawStartY < 0) drawStartY = 0;
-        let drawEndY = spriteHeight / 2 + h / 2;
-        if (drawEndY >= h) drawEndY = h - 1;
-
-        const spriteWidth = Math.abs(Math.floor(h / transformY));
-        let drawStartX = Math.floor(-spriteWidth / 2 + spriteScreenX);
-        let drawEndX = Math.floor(spriteWidth / 2 + spriteScreenX);
-
-        for (let stripe = drawStartX; stripe < drawEndX; stripe++) {
-          if (stripe >= 0 && stripe < w && transformY < zBuffer[stripe]) {
-            const progressX = (stripe - drawStartX) / spriteWidth;
-            ctx.fillStyle = enemy.flashTicks > 0 ? "#ff3333" : "#bd2a2a";
-
-            if (progressX > 0.3 && progressX < 0.7) {
-              ctx.fillRect(
-                stripe,
-                drawStartY + spriteHeight * 0.25,
-                1,
-                spriteHeight * 0.75,
-              );
-            }
-            if (progressX > 0.4 && progressX < 0.6) {
-              ctx.fillStyle = enemy.flashTicks > 0 ? "#ffffff" : "#e6a15c";
-              ctx.fillRect(
-                stripe,
-                drawStartY + spriteHeight * 0.05,
-                1,
-                spriteHeight * 0.2,
-              );
-            }
-            if (progressX > 0.45 && progressX < 0.55) {
-              ctx.fillStyle = "#00f0ff";
-              ctx.fillRect(
-                stripe,
-                drawStartY + spriteHeight * 0.1,
-                1,
-                Math.max(1, spriteHeight * 0.03),
-              );
-            }
-          }
-        }
-
-        if (transformY < 8) {
-          const barW = Math.max(20, 60 / transformY);
-          const barH = 4;
-          const bx = spriteScreenX - barW / 2;
-          const by = drawStartY - 10;
-
-          ctx.fillStyle = "rgba(0,0,0,0.5)";
-          ctx.fillRect(bx, by, barW, barH);
-          ctx.fillStyle = "#ff3b30";
-          ctx.fillRect(bx, by, barW * (enemy.health / enemy.maxHealth), barH);
-        }
-      });
-
-      // Draw Gun Overlay
-      const gunBaseX = w / 2;
-      const gunBaseY = h;
-
-      const time = performance.now() * 0.004;
-      const isMoving =
-        keysRef.current["w"] ||
-        keysRef.current["s"] ||
-        keysRef.current["a"] ||
-        keysRef.current["d"];
-      const swayX = isMoving ? Math.sin(time * 2) * 12 : Math.sin(time) * 3;
-      const swayY = isMoving ? Math.abs(Math.cos(time * 2)) * 8 : 0;
-      const recoilY = muzzleFlashRef.current > 0 ? 25 : 0;
-      const reloadAngle = isReloading
-        ? Math.sin(((performance.now() % 1200) / 1200) * Math.PI) * 0.6
-        : 0;
-
-      ctx.save();
-      ctx.translate(gunBaseX + swayX, gunBaseY + swayY + recoilY);
-      ctx.rotate(reloadAngle);
-
-      ctx.fillStyle = "#2c313c";
-      ctx.beginPath();
-      ctx.moveTo(-25, 0);
-      ctx.lineTo(-15, -110);
-      ctx.lineTo(20, -110);
-      ctx.lineTo(35, 0);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = "#1e222b";
-      ctx.fillRect(-6, -160, 12, 50);
-
-      ctx.fillStyle = "#4b5366";
-      ctx.fillRect(-10, -120, 20, 12);
-      ctx.fillStyle = "#00f0ff";
-      ctx.fillRect(-1, -115, 2, 2);
-
-      if (muzzleFlashRef.current > 0) {
-        ctx.fillStyle = "rgba(255, 185, 0, 0.9)";
-        ctx.beginPath();
-        ctx.arc(0, -165, 22, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.arc(0, -165, 10, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.restore();
-    };
-
-    animationFrameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animationFrameId);
+    frameId = requestAnimationFrame(processFrame);
+    return () => cancelAnimationFrame(frameId);
   }, [gameState, wave, ammo, isReloading]);
-
-  // Adjust canvas scale dynamically
-  useEffect(() => {
-    const handleResize = () => {
-      if (!canvasRef.current || !containerRef.current) return;
-      canvasRef.current.width = containerRef.current.clientWidth;
-      canvasRef.current.height = containerRef.current.clientHeight;
-    };
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [gameState]);
 
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-screen bg-slate-950 overflow-hidden font-sans select-none"
+      className="relative w-full h-screen bg-slate-950 overflow-hidden select-none"
     >
       <canvas
         ref={canvasRef}
@@ -711,21 +789,22 @@ export default function FrontlineSurge() {
       {/* --- HUD OVERLAYS --- */}
       {gameState === "PLAYING" && (
         <>
+          {/* Tactical Crosshair */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
-            <div className="w-1 h-4 bg-cyan-400 opacity-80 absolute" />
-            <div className="w-4 h-1 bg-cyan-400 opacity-80 absolute" />
-            <div className="w-1.5 h-1.5 rounded-full bg-cyan-300 absolute" />
+            <div className="w-5 h-[2px] bg-cyan-400/70 absolute" />
+            <div className="h-5 w-[2px] bg-cyan-400/70 absolute" />
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-300" />
           </div>
 
           <div className="absolute top-6 left-6 right-6 flex justify-between items-start pointer-events-none text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
             <div className="bg-slate-900/80 border border-slate-700/50 backdrop-blur px-5 py-3 rounded-md min-w-[220px]">
-              <div className="flex justify-between items-center mb-1 text-xs tracking-wider text-slate-400 font-bold uppercase">
-                <span>Operative Vitality</span>
+              <div className="flex justify-between items-center mb-1 text-xs font-bold uppercase tracking-wider text-slate-400">
+                <span>VITAL SIGNS</span>
                 <span
                   className={
                     health < 30
                       ? "text-red-500 animate-pulse font-black"
-                      : "text-emerald-400"
+                      : "text-cyan-400"
                   }
                 >
                   {Math.round(health)}%
@@ -740,23 +819,19 @@ export default function FrontlineSurge() {
             </div>
 
             <div className="bg-slate-900/80 border border-slate-700/50 backdrop-blur px-6 py-2.5 rounded-md text-center">
-              <div className="text-xs tracking-widest text-cyan-400 font-bold uppercase mb-0.5">
-                Assault Surge
+              <div className="text-xs font-bold uppercase tracking-widest text-cyan-400 mb-0.5">
+                TACTICAL AREA
               </div>
-              <div className="text-2xl font-black tracking-tight text-white">
-                WAVE {wave}
-              </div>
-              <div className="text-[10px] text-slate-400 tracking-wider uppercase mt-1">
-                HOSTILES LEFT:{" "}
-                <span className="text-amber-400 font-bold">
-                  {enemiesRemaining}
-                </span>
+              <div className="text-2xl font-black text-white">WAVE {wave}</div>
+              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                SYNTHS LEFT:{" "}
+                <span className="text-amber-400">{enemiesRemaining}</span>
               </div>
             </div>
 
             <div className="bg-slate-900/80 border border-slate-700/50 backdrop-blur px-5 py-3 rounded-md min-w-[140px] text-right">
-              <div className="text-xs tracking-wider text-slate-400 font-bold uppercase mb-0.5">
-                Score Tracker
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-0.5">
+                SCORE
               </div>
               <div className="text-xl font-mono font-black text-amber-400">
                 {score.toLocaleString()}
@@ -766,11 +841,11 @@ export default function FrontlineSurge() {
 
           <div className="absolute bottom-6 right-6 bg-slate-900/80 border border-slate-700/50 backdrop-blur px-6 py-4 rounded-md text-white min-w-[180px] text-right pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
             <div className="text-xs font-bold text-slate-400 tracking-widest uppercase mb-1">
-              M4 CARBINE
+              ENERGY CARTRIDGE
             </div>
             <div className="flex items-baseline justify-end gap-1 font-mono">
               <span
-                className={`text-4xl font-black ${ammo === 0 ? "text-red-500 animate-pulse" : ammo < 10 ? "text-amber-500" : "text-white"}`}
+                className={`text-4xl font-black ${ammo === 0 ? "text-red-500 animate-pulse" : "text-white"}`}
               >
                 {ammo}
               </span>
@@ -781,97 +856,55 @@ export default function FrontlineSurge() {
             </div>
             {isReloading ? (
               <div className="text-[11px] font-black tracking-wider text-amber-400 uppercase animate-pulse mt-1">
-                CHANGING MAG...
+                CYCLE CHARGE...
               </div>
             ) : ammo === 0 ? (
               <div className="text-[11px] font-black tracking-wider text-red-500 uppercase animate-pulse mt-1">
                 PRESS [R] TO RELOAD
               </div>
-            ) : (
-              <div className="text-[10px] text-slate-500 font-medium uppercase mt-1">
-                AUTO REGIME ACTIVE
-              </div>
-            )}
+            ) : null}
           </div>
 
           {!pointerLocked && (
-            <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-amber-500/90 text-slate-950 font-bold px-4 py-1.5 text-xs tracking-wider uppercase rounded shadow-lg animate-bounce">
-              Click Screen Area to Re-Engage Mouse Aiming
+            <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 font-bold px-4 py-1.5 text-xs tracking-wider uppercase rounded shadow-lg animate-bounce">
+              Click Canvas Area to Re-Lock Camera Aiming
             </div>
           )}
         </>
       )}
 
-      {/* --- MENU PANELS --- */}
+      {/* --- MENUS --- */}
       {gameState === "START" && (
         <div className="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center text-white px-4 z-50">
           <div className="max-w-md w-full text-center border border-slate-800 bg-slate-900/50 p-8 rounded-xl backdrop-blur-md shadow-2xl">
-            <h1 className="text-4xl font-black tracking-tighter uppercase mb-2 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent drop-shadow">
-              FRONTLINE SURGE
+            <h1 className="text-4xl font-black tracking-tighter uppercase mb-2 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+              FRONTLINE SURGE 3D
             </h1>
             <p className="text-slate-400 text-sm tracking-wide mb-8">
-              Tactical High-Performance Vector Arcade Survival FPS
+              Hardware-Accelerated WebGL Tactical Simulation Architecture
             </p>
 
             <button
               onClick={startGame}
-              className="w-full bg-cyan-500 hover:bg-cyan-400 active:scale-[0.98] text-slate-950 font-black tracking-wider uppercase py-4 px-6 rounded-lg transition text-sm shadow-lg shadow-cyan-500/20 mb-8 cursor-pointer"
+              className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black tracking-wider uppercase py-4 px-6 rounded-lg transition text-sm shadow-lg shadow-cyan-500/20 cursor-pointer"
             >
-              DEPLOY TO ENGAGEMENT ZONE
+              INITIALIZE INTERFACE VECTOR
             </button>
-
-            <div className="text-left border-t border-slate-800 pt-6">
-              <h3 className="text-xs text-cyan-400 font-bold tracking-widest uppercase mb-3">
-                Operational Protocols
-              </h3>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs text-slate-300">
-                <div className="flex items-center gap-2">
-                  <kbd className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700 font-mono shadow">
-                    WASD
-                  </kbd>{" "}
-                  Tactical Move
-                </div>
-                <div className="flex items-center gap-2">
-                  <kbd className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700 font-mono shadow">
-                    MOUSE
-                  </kbd>{" "}
-                  Free Look Aim
-                </div>
-                <div className="flex items-center gap-2">
-                  <kbd className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700 font-mono shadow">
-                    L-CLICK
-                  </kbd>{" "}
-                  Open Fire
-                </div>
-                <div className="flex items-center gap-2">
-                  <kbd className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700 font-mono shadow">
-                    R
-                  </kbd>{" "}
-                  Magazine Reload
-                </div>
-                <div className="flex items-center gap-2">
-                  <kbd className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700 font-mono shadow">
-                    SHIFT
-                  </kbd>{" "}
-                  Combat Sprint
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       )}
 
       {gameState === "INTERMISSION" && (
         <div className="absolute inset-0 bg-cyan-950/20 backdrop-blur-sm flex flex-col items-center justify-center text-white pointer-events-none z-50">
-          <div className="text-center">
+          <div className="text-center animate-pulse">
             <h2 className="text-cyan-400 text-sm font-black tracking-widest uppercase mb-1">
-              SURGE CONTAINED
+              CLEARED SECTION
             </h2>
             <h1 className="text-5xl font-black tracking-tight mb-2">
-              PREPARING NEXT WAVE
+              NEXT SURGE RE-ENGAGING
             </h1>
             <p className="text-slate-300 text-xs tracking-wider uppercase">
-              Rations delivered. Starting deployment cycle in{" "}
+              System calibration updates starting in{" "}
               <span className="text-amber-400 font-bold">
                 {intermissionCount}s
               </span>
@@ -883,30 +916,18 @@ export default function FrontlineSurge() {
       {gameState === "GAMEOVER" && (
         <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center text-white px-4 z-50">
           <div className="max-w-sm w-full text-center border border-red-900/30 bg-slate-900/40 p-8 rounded-xl backdrop-blur shadow-2xl">
-            <div className="w-12 h-12 bg-red-500/10 text-red-500 border border-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
-              ☠
-            </div>
             <h1 className="text-3xl font-black tracking-tight text-red-500 uppercase mb-1">
-              OPERATIVE DOWN
+              CONNECTION TERMINATED
             </h1>
             <p className="text-slate-400 text-xs tracking-wide mb-6">
-              Your defensive position was overwhelmed.
+              Biometric core vitals collapsed.
             </p>
-
-            <div className="bg-slate-950/60 rounded-md border border-slate-800 py-3 px-4 mb-6 flex justify-between items-center text-sm font-mono">
-              <span className="text-slate-400 text-xs uppercase font-sans">
-                Final Score:
-              </span>
-              <span className="text-amber-400 font-black text-base">
-                {score.toLocaleString()}
-              </span>
-            </div>
 
             <button
               onClick={startGame}
               className="w-full bg-slate-100 hover:bg-white text-slate-950 font-black tracking-wider uppercase py-3 px-5 rounded-lg text-xs transition cursor-pointer"
             >
-              DEPLOY REDUX RE-ENGAGEMENT
+              REBOOT SYSTEM CORES
             </button>
           </div>
         </div>
