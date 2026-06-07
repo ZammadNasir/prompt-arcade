@@ -104,7 +104,7 @@ Physics puzzles
 Projectile systems
 Destruction mechanics
 
-Use Three.js only for real 3D gameplay:
+Use Three.js for 3D gameplay:
 
 FPS
 Driving sims
