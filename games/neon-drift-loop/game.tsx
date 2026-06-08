@@ -215,6 +215,10 @@ export default function NeonDriftLoop() {
       wobbleAmp: number;
 
       color: THREE.Color;
+
+      cx: number; // tunnel centerline x at this ring's index
+
+      cy: number; // tunnel centerline y at this ring's index
     };
 
     const rings: RingData[] = [];
@@ -237,6 +241,24 @@ export default function NeonDriftLoop() {
       if (idx % 23 < 4) r -= 2.4;
 
       return Math.max(3.2, r);
+    };
+
+    // Tunnel centerline meander — smooth curve that the player must follow.
+
+    // Multi-octave sine keeps it curvy, not random.
+
+    const computeCenter = (idx: number, amp: number) => {
+      const cx =
+        Math.sin(idx * 0.085) * 3.6 * amp +
+        Math.sin(idx * 0.17 + 1.3) * 1.6 * amp +
+        Math.sin(idx * 0.31 + 2.4) * 0.7 * amp;
+
+      const cy =
+        Math.cos(idx * 0.095) * 3.4 * amp +
+        Math.sin(idx * 0.19 + 0.7) * 1.5 * amp +
+        Math.sin(idx * 0.27 + 1.9) * 0.6 * amp;
+
+      return { cx, cy };
     };
 
     for (let i = 0; i < RING_COUNT; i++) {
@@ -262,6 +284,8 @@ export default function NeonDriftLoop() {
 
       scene.add(mesh);
 
+      const c0 = computeCenter(i, 1);
+
       rings.push({
         mesh,
 
@@ -276,6 +300,10 @@ export default function NeonDriftLoop() {
         wobbleAmp: 0.18 + Math.random() * 0.18,
 
         color: color.clone(),
+
+        cx: c0.cx,
+
+        cy: c0.cy,
       });
     }
 
@@ -512,7 +540,13 @@ export default function NeonDriftLoop() {
 
         r.radius = computeRadius(i);
 
-        r.mesh.position.z = r.z;
+        const c = computeCenter(i, 1);
+
+        r.cx = c.cx;
+
+        r.cy = c.cy;
+
+        r.mesh.position.set(r.cx, r.cy, r.z);
 
         r.mesh.scale.set(r.radius, r.radius, 1);
       }
@@ -594,6 +628,14 @@ export default function NeonDriftLoop() {
         s.py = Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, s.py));
       }
 
+      // ---- difficulty: centerline meander amplitude grows with time ----
+
+      // 0 at start, ~1 after ~45 s — the corridor starts gentle, then gets wild
+
+      const difficulty = Math.min(1, s.time / 45);
+
+      const meanderAmp = 0.55 + difficulty * 0.85; // 0.55 .. 1.40 — clearly visible from the first second
+
       // ---- move rings forward ----
 
       const dz = s.running ? s.speed * dt : 0;
@@ -601,6 +643,14 @@ export default function NeonDriftLoop() {
       let crashed = false;
 
       let nearMissThisFrame = false;
+
+      // local tunnel center at the player's z (used for camera follow)
+
+      let localCx = 0;
+
+      let localCy = 0;
+
+      let localZ = 999;
 
       for (let i = 0; i < rings.length; i++) {
         const ring = rings[i];
@@ -621,7 +671,25 @@ export default function NeonDriftLoop() {
           if (Math.random() < TIGHTEN_PROB) {
             ring.radius = Math.max(3.4, ring.radius - 2.8);
           }
+
+          // refresh centerline anchor for the new index
+
+          const c = computeCenter(newIdx, meanderAmp);
+
+          ring.cx = c.cx;
+
+          ring.cy = c.cy;
         }
+
+        // slow time-based sway on top of the base centerline — corridor "breathes"
+
+        const swayX = Math.sin(t * 0.35 + ring.wobblePhase * 0.7) * 0.35;
+
+        const swayY = Math.cos(t * 0.42 + ring.wobblePhase * 0.9) * 0.35;
+
+        const ox = ring.cx + swayX;
+
+        const oy = ring.cy + swayY;
 
         // "breathing" — radius pulses subtly
 
@@ -629,13 +697,23 @@ export default function NeonDriftLoop() {
 
         const r = ring.radius + breath;
 
-        ring.mesh.position.z = ring.z;
+        ring.mesh.position.set(ox, oy, ring.z);
 
         ring.mesh.scale.set(r, r, 1);
 
         // slow ring spin for visual interest
 
         ring.mesh.rotation.z = t * 0.18 + ring.wobblePhase * 0.04;
+
+        // slight pitch/yaw from centerline slope so the tunnel looks like it bends
+
+        const slopeX = (ox - (ring.cx - 0.7)) * 0.06;
+
+        const slopeY = (oy - (ring.cy - 0.7)) * 0.06;
+
+        ring.mesh.rotation.x = slopeY;
+
+        ring.mesh.rotation.y = -slopeX;
 
         // hue cycle over time
 
@@ -647,10 +725,24 @@ export default function NeonDriftLoop() {
           0.6,
         );
 
-        // collision check near the player's z plane
+        // capture center for the ring nearest the player (camera anchor)
+
+        if (Math.abs(ring.z) < Math.abs(localZ)) {
+          localCx = ox;
+
+          localCy = oy;
+
+          localZ = ring.z;
+        }
+
+        // collision check near the player's z plane — against the ring's LOCAL center
 
         if (s.running && ring.z > -1.6 && ring.z < 1.6) {
-          const dist = Math.sqrt(s.px * s.px + s.py * s.py);
+          const dx = s.px - ox;
+
+          const dy = s.py - oy;
+
+          const dist = Math.sqrt(dx * dx + dy * dy);
 
           if (dist > r) {
             crashed = true;
@@ -689,17 +781,25 @@ export default function NeonDriftLoop() {
 
         playerGroup.rotation.x = s.vy * 0.04;
 
-        // camera sway follows player softly
+        // camera follows player but is also pulled by the local corridor center
 
-        const camX = s.px * 0.35;
+        // (so you really feel the corridor shifting underneath you)
 
-        const camY = s.py * 0.35 + Math.sin(t * 0.7) * 0.15;
+        const camX = s.px * 0.5 + localCx * 0.5;
 
-        camera.position.x += (camX - camera.position.x) * 0.12;
+        const camY = s.py * 0.5 + localCy * 0.5 + Math.sin(t * 0.7) * 0.15;
 
-        camera.position.y += (camY - camera.position.y) * 0.12;
+        camera.position.x += (camX - camera.position.x) * 0.16;
 
-        camera.lookAt(s.px * 0.6, s.py * 0.6, -20);
+        camera.position.y += (camY - camera.position.y) * 0.16;
+
+        // look toward where the corridor is heading
+
+        const lookX = s.px * 0.35 + localCx * 0.65;
+
+        const lookY = s.py * 0.35 + localCy * 0.65;
+
+        camera.lookAt(lookX, lookY, -20);
       } else {
         // crash: pull camera back, dim scene
 
@@ -794,7 +894,7 @@ export default function NeonDriftLoop() {
 
       renderer.dispose();
 
-      scene.traverse((obj: any) => {
+      scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh) {
           obj.geometry.dispose();
 

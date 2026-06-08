@@ -7,7 +7,7 @@ export const meta: GameMeta = {
   description:
     "Classic pellet-munching maze adventure. Collect dots, avoid ghosts, and survive as long as you can!",
   genre: "Puzzle",
-  generatedWith: "Grok",
+  generatedWith: "Grok 4.3",
   status: "Actually Good",
   thumbnail,
   layout: "immersive",

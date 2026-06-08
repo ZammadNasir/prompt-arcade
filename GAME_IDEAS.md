@@ -35,6 +35,7 @@ Every 5 seconds, your previous run becomes a clone that repeats actions.
 
 Solve puzzles with your past selves
 Gradually chaotic layering
+
 🧠 Matter.js Physics Ideas 6. Tower of Almost Stability
 
 Build a tower, but:
@@ -52,6 +53,7 @@ You’re a sticky blob stealing objects using stretchy physics arms.
 
 Pull objects into a getaway van
 Overstretching snaps your arm temporarily
+
 🌌 Three.js Ideas (3D experiments) 9. Neon Drift Loop
 
 Infinite tunnel driving game:
@@ -63,13 +65,18 @@ Music-reactive visuals 10. Memory Maze
 Maze changes when you look away.
 
 Turning camera reshapes walls
-You must navigate by partial memory 11. Gravity Flip Runner (3D)
+
+You must navigate by partial memory 11.
+
+Gravity Flip Runner (3D)
 
 Run on walls/ceilings:
 
 Gravity flips when hitting colored zones
 Camera rotation disorients player intentionally
-🧩 Experimental / “Chaos Mode” ideas 12. Game That Learns Badly
+🧩 Experimental / “Chaos Mode” ideas
+
+12. Game That Learns Badly
 
 The game tries to adapt to your playstyle but gets it wrong:
 
