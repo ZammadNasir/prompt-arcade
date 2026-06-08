@@ -2,11 +2,43 @@ import { GameFilters } from "@/components/game-filters";
 import { SiteNav } from "@/components/site-nav";
 import { listGameCards } from "@/lib/games";
 
-export default function Home() {
-  const games = listGameCards();
+export default async function Home() {
+  const games = await listGameCards();
+
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Prompt Arcade",
+    "url": "https://promptarcade.vercel.app",
+    "description": "A fast, static-first arcade and museum for browser games generated from AI prompts.",
+  };
+
+  const collectionSchema = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": "Prompt Arcade Games",
+    "description": "Play AI-generated browser games built with prompts, Phaser, Matter.js, Three.js, and modern web technologies.",
+    "url": "https://promptarcade.vercel.app",
+    "numberOfItems": games.length,
+    "itemListElement": games.map((game, index) => ({
+      "@type": "ListItem",
+      "position": index + 1,
+      "url": `https://promptarcade.vercel.app/game/${game.slug}`,
+      "name": game.name,
+      "description": game.description,
+    })),
+  };
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionSchema) }}
+      />
       <SiteNav />
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-10 px-5 py-8 lg:px-8">
         <section className="grid gap-5 border-b border-slate-700 pb-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">

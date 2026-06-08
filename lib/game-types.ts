@@ -17,8 +17,11 @@ export const gameStatuses = [
   "Actually Good",
 ] as const;
 
+export const gameLayouts = ["card", "immersive"] as const;
+
 export type GameGenre = (typeof gameGenres)[number];
 export type GameStatus = (typeof gameStatuses)[number];
+export type GameLayout = (typeof gameLayouts)[number];
 export type GameThumbnail = StaticImageData | string;
 
 export type GameMeta = {
@@ -29,8 +32,10 @@ export type GameMeta = {
   generatedWith: string;
   status: GameStatus;
   thumbnail: GameThumbnail;
-  prompts: string[];
-  knownIssues: string[];
+  layout?: GameLayout;
+  controls?: string[];
+  prompts?: string[];
+  knownIssues?: string[];
 };
 
 export type GameRegistryEntry = {
