@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://promptarcade.vercel.app"),
+  metadataBase: new URL("https://promptarcade-games.vercel.app"),
   title: {
     default: "Prompt Arcade",
     template: "%s | Prompt Arcade",
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     description:
       "Play AI-generated browser games built with prompts, Phaser, Matter.js, Three.js, and modern web technologies.",
     type: "website",
-    url: "https://promptarcade.vercel.app",
+    url: "https://promptarcade-games.vercel.app",
     siteName: "Prompt Arcade",
     images: [
       {

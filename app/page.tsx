@@ -9,7 +9,7 @@ export default async function Home() {
     "@context": "https://schema.org",
     "@type": "WebSite",
     "name": "Prompt Arcade",
-    "url": "https://promptarcade.vercel.app",
+    "url": "https://promptarcade-games.vercel.app",
     "description": "A fast, static-first arcade and museum for browser games generated from AI prompts.",
   };
 
@@ -18,12 +18,12 @@ export default async function Home() {
     "@type": "CollectionPage",
     "name": "Prompt Arcade Games",
     "description": "Play AI-generated browser games built with prompts, Phaser, Matter.js, Three.js, and modern web technologies.",
-    "url": "https://promptarcade.vercel.app",
+    "url": "https://promptarcade-games.vercel.app",
     "numberOfItems": games.length,
     "itemListElement": games.map((game, index) => ({
       "@type": "ListItem",
       "position": index + 1,
-      "url": `https://promptarcade.vercel.app/game/${game.slug}`,
+      "url": `https://promptarcade-games.vercel.app/game/${game.slug}`,
       "name": game.name,
       "description": game.description,
     })),
