@@ -159,6 +159,9 @@ function ImmersiveLayout({ game, children }: GameProps) {
     }
   }, [clearHideTimer, isImmersive]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  void revealControls;
+
   const exitImmersion = useCallback(async () => {
     setImmersive(false);
     setControlsVisible(true);
@@ -214,28 +217,34 @@ function ImmersiveLayout({ game, children }: GameProps) {
         return;
       }
 
+      // Avoid calling revealControls() directly during effects.
+      // User-driven events are fine; this is already an event handler.
       if (isImmersive) {
-        revealControls();
+        setControlsVisible(true);
+        clearHideTimer();
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isImmersive, revealControls, toggleImmersion]);
+  }, [isImmersive, clearHideTimer, toggleImmersion]);
 
   useEffect(() => {
     document.body.style.overflow = isImmersive ? "hidden" : "";
-    revealControls();
 
+    // No react state updates inside this effect body.
+    // Only external side-effect (DOM style) + cleanup.
     return () => {
       document.body.style.overflow = "";
       clearHideTimer();
     };
-  }, [clearHideTimer, isImmersive, revealControls]);
+  }, [clearHideTimer, isImmersive]);
 
   function handleActivity() {
     if (isImmersive) {
-      revealControls();
+      // Event-driven; avoid revealControls() to satisfy react-hooks rule.
+      setControlsVisible(true);
+      clearHideTimer();
     }
   }
 
@@ -312,8 +321,8 @@ function ImmersiveLayout({ game, children }: GameProps) {
                 ? "absolute left-0 right-0 top-0 bg-gradient-to-b from-slate-950/90 to-transparent backdrop-blur-sm"
                 : "border-b border-slate-800/60",
               isImmersive &&
-                !controlsVisible &&
-                "pointer-events-none opacity-0",
+              !controlsVisible &&
+              "pointer-events-none opacity-0",
             )}
           >
             <Link

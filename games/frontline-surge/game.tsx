@@ -401,7 +401,16 @@ export default function FrontlineSurge3D() {
       if (gameState !== "PLAYING") return;
       const key = e.key.toLowerCase();
       keysRef.current[key] = true;
-      if (key === "r") reloadWeapon();
+      // Avoid calling reloadWeapon before its declaration (some builds choke)
+      if (key === "r") {
+        if (ammo !== maxAmmo && !isReloading) {
+          setIsReloading(true);
+          setTimeout(() => {
+            setAmmo(maxAmmo);
+            setIsReloading(false);
+          }, 1200);
+        }
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -675,13 +684,13 @@ export default function FrontlineSurge3D() {
 
           if (
             MAP[Math.floor(bot.mesh.position.z)][
-              Math.floor(bot.mesh.position.x + stepX)
+            Math.floor(bot.mesh.position.x + stepX)
             ] === 0
           )
             bot.mesh.position.x += stepX;
           if (
             MAP[Math.floor(bot.mesh.position.z + stepZ)][
-              Math.floor(bot.mesh.position.x)
+            Math.floor(bot.mesh.position.x)
             ] === 0
           )
             bot.mesh.position.z += stepZ;
@@ -693,7 +702,7 @@ export default function FrontlineSurge3D() {
               setGameState("GAMEOVER");
               try {
                 document.exitPointerLock();
-              } catch {}
+              } catch { }
               return 0;
             }
             return current;

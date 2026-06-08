@@ -13,8 +13,47 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Prompt Arcade",
-  description: "Play AI-generated browser games.",
+  metadataBase: new URL("https://promptarcade.vercel.app"),
+  title: {
+    default: "Prompt Arcade",
+    template: "%s | Prompt Arcade",
+  },
+  description:
+    "Play AI-generated browser games built with prompts, Phaser, Matter.js, Three.js, and modern web technologies.",
+  keywords: [
+    "AI games",
+    "browser games",
+    "AI generated games",
+    "prompt engineering",
+    "Phaser games",
+    "Three.js games",
+    "indie browser games",
+    "free arcade games",
+    "open source games",
+  ],
+  openGraph: {
+    title: "Prompt Arcade",
+    description:
+      "Play AI-generated browser games built with prompts, Phaser, Matter.js, Three.js, and modern web technologies.",
+    type: "website",
+    url: "https://promptarcade.vercel.app",
+    siteName: "Prompt Arcade",
+    images: [
+      {
+        url: "/assets/logo_full.png",
+        width: 1200,
+        height: 630,
+        alt: "Prompt Arcade Logo",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Prompt Arcade",
+    description:
+      "Play AI-generated browser games built with prompts, Phaser, Matter.js, Three.js, and modern web technologies.",
+    images: ["/assets/logo_full.png"],
+  },
 };
 
 export default function RootLayout({
