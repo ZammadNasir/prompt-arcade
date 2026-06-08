@@ -8,6 +8,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: "https://promptarcade.vercel.app/sitemap.xml",
+    sitemap: "https://promptarcade-games.vercel.app/sitemap.xml",
   };
 }

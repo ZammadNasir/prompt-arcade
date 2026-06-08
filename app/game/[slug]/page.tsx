@@ -31,7 +31,7 @@ export async function generateMetadata({
     : game.meta.thumbnail.src ?? "";
 
   const absoluteImageUrl = thumbnailSrc
-    ? (thumbnailSrc.startsWith("http") ? thumbnailSrc : `https://promptarcade.vercel.app${thumbnailSrc}`)
+    ? (thumbnailSrc.startsWith("http") ? thumbnailSrc : `https://promptarcade-games.vercel.app${thumbnailSrc}`)
     : undefined;
 
   return {
@@ -51,7 +51,7 @@ export async function generateMetadata({
       title: `${game.meta.name} - Play Free on Prompt Arcade`,
       description: game.meta.description,
       type: "video.other",
-      url: `https://promptarcade.vercel.app/game/${slug}`,
+      url: `https://promptarcade-games.vercel.app/game/${slug}`,
       siteName: "Prompt Arcade",
       images: absoluteImageUrl
         ? [
@@ -98,7 +98,7 @@ export default async function GamePage({ params }: GamePageProps) {
     : game.meta.thumbnail.src ?? "";
 
   const absoluteImageUrl = thumbnailSrc
-    ? (thumbnailSrc.startsWith("http") ? thumbnailSrc : `https://promptarcade.vercel.app${thumbnailSrc}`)
+    ? (thumbnailSrc.startsWith("http") ? thumbnailSrc : `https://promptarcade-games.vercel.app${thumbnailSrc}`)
     : undefined;
 
   const gameSchema = {
@@ -108,7 +108,7 @@ export default async function GamePage({ params }: GamePageProps) {
     "description": game.meta.description,
     "genre": game.meta.genre,
     "image": absoluteImageUrl,
-    "url": `https://promptarcade.vercel.app/game/${slug}`,
+    "url": `https://promptarcade-games.vercel.app/game/${slug}`,
     "playMode": "SinglePlayer",
     "applicationCategory": "Game",
     "operatingSystem": "Windows, macOS, Linux, Android, iOS",
