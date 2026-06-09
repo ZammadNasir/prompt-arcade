@@ -98,6 +98,56 @@ Open:
 http://localhost:3000
 ```
 
+---
+
+## Scaffold a New Game
+
+Use the init script to generate the folder structure and boilerplate:
+
+```bash
+npm run init <game-name>
+```
+
+Example:
+
+```bash
+npm run init subway-runner
+```
+
+This creates:
+
+```text
+games/subway-runner/
+├── game.tsx
+├── meta.ts
+├── thumbnail.png
+├── assets/
+└── README.md
+```
+
+Rules:
+
+- Use lowercase and hyphens only
+- No spaces, underscores, or special characters
+- No consecutive hyphens
+- Cannot start or end with a hyphen
+
+Valid:
+
+```text
+subway-runner
+car-racing
+```
+
+Invalid:
+
+```text
+subway runner
+subway_runner
+subway@runner
+.subway-runner
+```
+
 The application scans the `/games` directory during static rendering.
 
 Adding a new game folder automatically makes it available throughout the site.
@@ -108,7 +158,7 @@ No routing changes are required.
 
 ## Add a Game
 
-Create a new folder:
+You can also create a new folder manually:
 
 ```text
 games/my-game/

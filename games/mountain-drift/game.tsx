@@ -145,19 +145,34 @@ export default function MountainDrift() {
       if (gameOver) return;
 
       const force = 0.0035;
+      const wheelTorque = 0.18;
 
       if (keys.right) {
-        Body.applyForce(chassis, chassis.position, { x: force, y: 0 });
+        Body.setAngularVelocity(
+          wheelA,
+          Math.min(wheelA.angularVelocity + wheelTorque, 1.8)
+        );
+
+        Body.setAngularVelocity(
+          wheelB,
+          Math.min(wheelB.angularVelocity + wheelTorque, 1.8)
+        );
+
         fuel -= 0.02;
-      } else if (keys.left) {
-        Body.applyForce(chassis, chassis.position, { x: -force, y: 0 });
+      }
+
+      if (keys.left) {
+        Body.setAngularVelocity(
+          wheelA,
+          Math.max(wheelA.angularVelocity - wheelTorque, -1.8)
+        );
+
+        Body.setAngularVelocity(
+          wheelB,
+          Math.max(wheelB.angularVelocity - wheelTorque, -1.8)
+        );
+
         fuel -= 0.015;
-      } else {
-        // ✅ stop infinite drifting
-        Body.setVelocity(chassis, {
-          x: chassis.velocity.x * 0.985,
-          y: chassis.velocity.y,
-        });
       }
 
       distance = Math.max(distance, Math.floor(chassis.position.x / 10));
