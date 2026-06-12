@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "npx serve@latest out",
-    "lint": "eslint"
+    "lint": "eslint",
+    "init": "tsx scripts/init-game.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
@@ -27,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }

@@ -30,7 +30,44 @@ The goal is **playability and fun**.
 
 # 2. How to Add a Game (Minimal Steps)
 
-Create a new folder inside:
+Use the scaffold script (recommended):
+
+```bash
+npm run init <game-name>
+```
+
+Example:
+
+```bash
+npm run init subway-runner
+```
+
+This creates the folder structure and boilerplate files automatically.
+
+Game name rules:
+
+- Lowercase letters and hyphens only
+- No spaces, underscores, or special characters
+- No consecutive hyphens
+- Cannot start or end with a hyphen
+
+Valid:
+
+```txt
+subway-runner
+car-racing
+```
+
+Invalid:
+
+```txt
+subway runner
+subway_runner
+subway@runner
+-subway-runner
+```
+
+Or create a new folder manually inside:
 
 ```txt
 games/my-game/
